@@ -566,3 +566,88 @@ def test_po_ref_placeholder_with_no_fallback_is_a_missing_po(placeholder):
 def test_invoice_ref_placeholder_matches_the_payment_by_vendor_and_amount(placeholder):
     result = run([inv("INV-1")], [po()], [pay("P1", placeholder, 1180)])
     assert result.exceptions == [] and result.unmatched_payment_ids == []
+
+
+# ---- council fix: ambiguous bill numbers, credit notes, repeated POs ----
+
+def ambiguous_bills():
+    """Bill K-1 exists for two vendors: Kumar Packaging (11,800) and Zenith Traders (1,180)."""
+    return (
+        [inv("K-1", vendor="Kumar Packaging", qty=10, rate=1000),
+         inv("K-1", vendor="Zenith Traders", po="PO-2", qty=10, rate=10)],
+        [po("PO-1", vendor="Kumar Packaging", rate=1000), po("PO-2", vendor="Zenith Traders", rate=10)],
+    )
+
+
+def test_shared_bill_number_links_to_the_vendor_with_the_closest_name():
+    invoices, pos = ambiguous_bills()
+    result = run(invoices, pos, [pay("P1", "K-1", 118, payee="Zenith Trading Co")])
+    assert result.exceptions == [] and result.unmatched_payment_ids == []
+
+
+def test_shared_bill_number_with_an_exact_vendor_match_still_links():
+    invoices, pos = ambiguous_bills()
+    result = run(invoices, pos, [pay("P1", "K-1", 118, payee="Zenith Traders Pvt Ltd")])
+    assert result.exceptions == [] and result.unmatched_payment_ids == []
+
+
+def test_shared_bill_number_with_no_matching_payee_is_left_unmatched_not_given_to_the_first():
+    invoices, pos = ambiguous_bills()
+    result = run(invoices, pos, [pay("P1", "K-1", 118, payee="Totally Different Ltd")])
+    assert result.exceptions == []
+    assert result.unmatched_payment_ids == ["P1"]
+    assert "P1" in result.warnings[0] and "K-1" in result.warnings[0]
+
+
+def test_shared_bill_number_with_a_tie_on_the_payee_name_is_left_unmatched():
+    invoices = [inv("K-1", vendor="Sri Ganesh Steel"), inv("K-1", vendor="Sri Ganesh Foods", po="PO-2")]
+    pos = [po("PO-1", vendor="Sri Ganesh Steel"), po("PO-2", vendor="Sri Ganesh Foods")]
+    result = run(invoices, pos, [pay("P1", "K-1", 1180, payee="Sri Ganesh")])
+    assert result.unmatched_payment_ids == ["P1"] and "K-1" in result.warnings[0]
+
+
+def test_generic_words_alone_do_not_link_a_payee():
+    invoices = [inv("K-1", vendor="Kumar Traders"), inv("K-1", vendor="Zenith Traders", po="PO-2")]
+    pos = [po("PO-1", vendor="Kumar Traders"), po("PO-2", vendor="Zenith Traders")]
+    result = run(invoices, pos, [pay("P1", "K-1", 1180, payee="Acme Traders")])
+    assert result.unmatched_payment_ids == ["P1"]
+
+
+def test_a_single_candidate_still_links_even_if_the_payee_name_differs():
+    result = run([inv("INV-1")], [po()], [pay("P1", "INV-1", 1180, payee="Someone Else")])
+    assert result.exceptions == [] and result.unmatched_payment_ids == []
+
+
+def credit_note(**kwargs):
+    defaults = dict(qty=10, rate=100, taxable=-1000, gst_amount=-180, total=-1180)
+    return inv("CN-1", **(defaults | kwargs))
+
+
+@pytest.mark.parametrize("line", [
+    credit_note(),
+    credit_note(total=1180),  # only the taxable value is negative
+    credit_note(taxable=1000, gst_amount=180, total=-1180),  # only the total is negative
+    credit_note(qty=-10, taxable=1000, gst_amount=180, total=1180),  # only the quantity is negative
+], ids=["negative_total_and_taxable", "negative_taxable", "negative_total", "negative_qty"])
+def test_credit_notes_are_skipped_with_a_warning(line):
+    result = run([inv("INV-1", qty=10), line], [po()])
+    assert result.exceptions == []
+    assert result.warnings == ["Row 3 (CN-1) looks like a credit note and was not matched. "
+                               "Credit notes are not supported yet."]
+    assert result.invoices_checked == 1
+
+
+def test_a_credit_note_does_not_use_up_the_po_quantity():
+    result = run([inv("INV-1", qty=10), credit_note(qty=-5, taxable=-500, gst_amount=-90, total=-590)], [po()])
+    assert result.exceptions == []
+
+
+def test_a_credit_note_with_a_different_rate_is_not_an_amount_mismatch():
+    result = run([credit_note(rate=999, taxable=-9990, gst_amount=-1798.2, total=-11788.2)], [po()])
+    assert result.exceptions == []
+
+
+def test_a_repeated_po_number_warns_and_uses_the_first_row():
+    result = run([inv("INV-1")], [po("PO-1"), po("po 1", qty=999)])
+    assert result.exceptions == []
+    assert result.warnings == ["po 1 appears more than once; the first row is used."]
