@@ -1,6 +1,6 @@
 # Exception triage for accounts payable
 
-Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payments) and get every mismatch listed with the rupees at risk, the exact rows involved and one plain English sentence on what went wrong. Built for AP teams that do this by hand today, and for the people who deploy automation to them, such as the forward deployed engineers at Peakflo.
+Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payments) and get every mismatch listed with the rupees at risk, the exact rows involved and one plain English sentence on what went wrong. Built for AP teams that do this by hand today, and as a quick check of a new customer's exports before they are loaded into an AP platform.
 
 ## Run it in 60 seconds
 ```bash
@@ -92,3 +92,8 @@ No test touches the network or starts a model.
 - CSV only, not xlsx. In Excel use Save As, CSV UTF-8. UTF-8 and UTF-16 files are accepted, other encodings get a clear error.
 - Files over 5 MB are refused.
 - Single user, local only. There is no login.
+- The three way match is PO, invoice and payment. There is no goods receipt file, so quantity is checked against the PO only.
+- Credit notes (negative invoices) are skipped with a warning, not netted.
+- The amount at risk adds up findings per invoice. If one invoice has two findings, the same rupees can count twice in the headline.
+- Not covered yet: GSTR-2B and ITC eligibility, place of supply (IGST against CGST plus SGST), TDS section and rate checks, MSME payment deadlines, vendor master and bank detail changes.
+- The accuracy figure (16 of 16) is measured against a planted answer key on synthetic data. It shows the checks work, not how they score on a real export.
