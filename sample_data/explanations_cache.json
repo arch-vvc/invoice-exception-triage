@@ -1,1 +1,85 @@
-{"version": 1, "entries": {}}
+{
+  "entries": {
+    "0ee4c52aa3e48028": {
+      "backend": "claude-cli",
+      "text": "Invoice SGS/0455 is overpaid: payments of ₹1,74,640, counting TDS, exceed the ₹87,320 invoice total, leaving ₹87,320 at risk.",
+      "type": "overpayment"
+    },
+    "13d153536146582f": {
+      "backend": "claude-cli",
+      "text": "Invoice BR/24/2330 from Bharat Rubber Industries has 1,600 units invoiced against PO-00116's 1,500 ordered, a 100-unit excess that puts ₹2,832 at risk.",
+      "type": "quantity_mismatch"
+    },
+    "24c2171bafa96c97": {
+      "backend": "claude-cli",
+      "text": "Invoice OSE/2024/338 from Om Sai Electricals bills GST at 18% against the 12% on PO-00124, a rate mismatch that puts ₹9,600 at risk.",
+      "type": "gst_error"
+    },
+    "33e1e9af0e14aced": {
+      "backend": "claude-cli",
+      "text": "Invoice OSE/2024/361 from Om Sai Electricals cites PO-00999, which is not in the PO file, so ₹47,200 is at risk of payment without a valid purchase order.",
+      "type": "missing_po"
+    },
+    "41076628b97b0b05": {
+      "backend": "claude-cli",
+      "text": "Invoice KP/24-25/0189 from Kumar Packaging has ₹18,440 outstanding after ₹50,000 was paid against a ₹68,440 total with no TDS deducted, so that amount is still owed.",
+      "type": "partial_payment"
+    },
+    "60000c3428f65d5e": {
+      "backend": "claude-cli",
+      "text": "Invoice AS/0071 from Apex Safety Products has no PO reference and no matching PO could be found, leaving ₹1,29,800 at risk of payment without authorization.",
+      "type": "missing_po"
+    },
+    "6c66cba9e11bae00": {
+      "backend": "claude-cli",
+      "text": "Invoice GAC/118 bills ₹668 per unit against the agreed PO-00127 rate of ₹640, overcharging ₹14,000 on this invoice.",
+      "type": "amount_mismatch"
+    },
+    "7abada1ed6ef87cb": {
+      "backend": "claude-cli",
+      "text": "Invoice INV-0215 has a supplier GSTIN that fails the check-digit test, so it is probably mistyped, putting ₹29,808 at risk until the vendor's tax registration number is verified.",
+      "type": "gst_error"
+    },
+    "8c549b6da5b17c6a": {
+      "backend": "claude-cli",
+      "text": "Invoice SGS/0412 names the vendor Sri Ganesh Steel, but linked PO-00104 says Shree Ganesh Steels; it is probably the same supplier, and ₹0 is at risk for now.",
+      "type": "vendor_name_mismatch"
+    },
+    "b476ac57f76275d3": {
+      "backend": "claude-cli",
+      "text": "Invoice MTW/1043 from Mahalakshmi Tooling Works bills a unit rate of ₹3,300 against the PO-00114 rate of ₹3,150, overcharging ₹3,000 with ₹3,540 at risk.",
+      "type": "amount_mismatch"
+    },
+    "c1d9fc8a80c0fc27": {
+      "backend": "claude-cli",
+      "text": "Invoice AP/0925 from Aarav Paints and Coatings Pvt Ltd is short-paid by ₹87,200, with ₹1,40,000 paid against a ₹2,27,200 total and no TDS deducted.",
+      "type": "partial_payment"
+    },
+    "cb811df7f808ecfe": {
+      "backend": "claude-cli",
+      "text": "Invoice VF/0577 is linked to PO-00106, but the vendor names differ (\"Sri Venkateswara Fasteners Pvt Ltd\" versus \"Venkateswara Fasteners\"), though it is probably the same supplier, and ₹0 is at risk.",
+      "type": "vendor_name_mismatch"
+    },
+    "d07f0409fceb4f88": {
+      "backend": "claude-cli",
+      "text": "Invoice HL/2425/231 from Hindustan Lubricants Distributors has a GSTIN that fails the valid format check, putting ₹17,010 at risk until the supplier corrects it.",
+      "type": "gst_error"
+    },
+    "d1581c03d7c75382": {
+      "backend": "claude-cli",
+      "text": "Invoice DBS-0731 from Deccan Bearings & Spares has been billed 720 units against PO-00118's 600 ordered, an excess of 120 units putting ₹26,196 at risk.",
+      "type": "quantity_mismatch"
+    },
+    "dd62ddd4779ab777": {
+      "backend": "claude-cli",
+      "text": "Invoice SE-24-25-107 duplicates earlier invoice SE/24-25/0107 from Sai Engineering Works with the same total, so paying both would pay the vendor twice and put ₹90,624 at risk.",
+      "type": "duplicate_invoice"
+    },
+    "e6286afc999527cb": {
+      "backend": "claude-cli",
+      "text": "Invoice INV/42 duplicates earlier invoice INV-0042 from Sundaram Brake Linings Pvt Ltd, so paying both would put ₹1,45,140 at risk of being paid twice.",
+      "type": "duplicate_invoice"
+    }
+  },
+  "version": 1
+}

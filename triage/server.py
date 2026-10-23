@@ -66,7 +66,7 @@ def explain(server: TriageServer, result: TriageResult) -> tuple[dict[str, str],
     """Ask the explainer for sentences. If it fails, carry on with blanks and a warning."""
     try:
         found = server.explainer(result.exceptions) or {}
-        return {exc.id: str(found.get(exc.id, "")) for exc in result.exceptions}, []
+        return {exc.id: str(found.get(exc.id) or "") for exc in result.exceptions}, []
     except Exception:
         traceback.print_exc()
         return {}, [EXPLAIN_WARNING]
