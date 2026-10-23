@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice exception triage</title>
+<style>
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e1e4ea;
+  --border-strong: #c9ced8;
+  --text: #1a1f29;
+  --muted: #566070;
+  --accent: #2b44c8;
+  --accent-dark: #2236a3;
+  --accent-soft: #eaeefc;
+  --high-bg: #fdeaea;  --high-fg: #a11d1d;  --high-dot: #d93636;
+  --med-bg: #fff1d6;   --med-fg: #7f4300;   --med-dot: #e08a00;
+  --low-bg: #e8edf7;   --low-fg: #3a4f78;   --low-dot: #6f86b3;
+  --ok: #17703f;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(20, 28, 45, .06), 0 1px 1px rgba(20, 28, 45, .04);
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #8fa0f0; outline-offset: 2px; }
+
+.wrap { max-width: 1360px; margin: 0 auto; padding: 0 32px; }
+.topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
+.topbar .wrap { display: flex; align-items: center; gap: 12px; height: 60px; }
+h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+.tag { font-size: 12px; font-weight: 600; color: var(--low-fg); background: var(--low-bg); border-radius: 999px; padding: 2px 10px; }
+.spacer { flex: 1; }
+main { padding: 28px 0 64px; }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px;
+  font-weight: 600; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface);
+  cursor: pointer; text-decoration: none; color: var(--text); }
+.btn:hover { background: #f1f3f7; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn.big { min-height: 48px; padding: 0 26px; font-size: 15px; }
+.btn[disabled] { background: #e9ebf0; border-color: #e9ebf0; color: #6b7482; cursor: not-allowed; }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.quiet:hover { background: #eceff4; color: var(--text); }
+
+/* start */
+.intro h2 { margin: 0 0 4px; font-size: 24px; letter-spacing: -.015em; }
+.intro p { margin: 0 0 24px; color: var(--muted); font-size: 15px; max-width: 70ch; }
+.zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.zone { background: var(--surface); border: 2px dashed var(--border-strong); border-radius: 12px; padding: 28px 20px;
+  min-height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  gap: 4px; cursor: pointer; transition: border-color .15s, background .15s; }
+.zone:hover, .zone.is-over { border-color: var(--accent); background: #f8f9fe; }
+.zone .glyph { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  display: grid; place-items: center; font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.zone .zone-title { font-size: 16px; font-weight: 650; }
+.zone .zone-hint { color: var(--muted); font-size: 13px; }
+.zone .zone-status { margin-top: 10px; font-size: 13px; color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
+.zone.is-ok { border-style: solid; border-color: #9fd2b5; background: #f6fbf8; }
+.zone.is-ok .glyph { background: #dcf1e5; color: var(--ok); }
+.zone.is-ok .zone-status { color: var(--text); }
+.zone.is-ok .fname { font-weight: 650; }
+.zone.is-error { border-style: solid; border-color: #e3a1a1; background: #fffafa; }
+.zone.is-error .glyph { background: var(--high-bg); color: var(--high-fg); }
+.zone.is-error .zone-status { color: var(--high-fg); text-align: left; }
+.zone.is-busy { opacity: .7; cursor: progress; }
+.actions { display: flex; align-items: center; gap: 16px; margin-top: 24px; }
+.actions .or { color: var(--muted); }
+
+/* loading */
+.loading-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--border-strong); border-top-color: var(--accent);
+  animation: spin .8s linear infinite; flex: none; }
+.loading-head strong { font-size: 16px; }
+.loading-head span.sub { color: var(--muted); }
+.skel { background: linear-gradient(90deg, #e9ecf1 25%, #f3f5f8 50%, #e9ecf1 75%); background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite; border-radius: 6px; }
+.skel-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.skel-card { height: 96px; border-radius: var(--radius); }
+.skel-table { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 16px; }
+.skel-row { height: 18px; margin: 20px 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .skel { animation: none; }
+  .zone, .drawer { transition: none !important; }
+}
+
+/* error */
+.error-box { max-width: 640px; margin: 48px auto; background: var(--surface); border: 1px solid #e3a1a1; border-left: 6px solid var(--high-dot);
+  border-radius: var(--radius); padding: 28px 32px; box-shadow: var(--shadow); }
+.error-box h2 { margin: 0 0 8px; font-size: 20px; }
+.error-box p { margin: 0 0 20px; font-size: 15px; overflow-wrap: anywhere; }
+
+/* results */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+.stat .label { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.stat .value { font-size: 30px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.stat .sub { margin-top: 4px; font-size: 13px; color: var(--muted); min-height: 20px; display: flex; align-items: center; gap: 8px; }
+.stat.risk .value { color: var(--high-fg); }
+.notice { background: #fff8e6; border: 1px solid #f0d58a; color: #5c3c00; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+.notice ul { margin: 4px 0 0; padding-left: 18px; }
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.chip { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px;
+  font-weight: 550; cursor: pointer; color: var(--text); }
+.chip:hover { background: #f1f3f7; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip .n { margin-left: 6px; opacity: .75; font-variant-numeric: tabular-nums; }
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+table.exc { width: 100%; min-width: 1040px; border-collapse: collapse; table-layout: fixed; }
+.exc th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+  padding: 11px 14px; border-bottom: 1px solid var(--border); background: #fafbfc; white-space: nowrap; }
+.exc td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; }
+.exc tbody tr:last-child td { border-bottom: 0; }
+.exc tbody tr { cursor: pointer; }
+.exc tbody tr:hover { background: #f5f7fc; }
+.exc tbody tr.selected { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.exc .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exc td.num { font-weight: 650; font-size: 14px; }
+.exc td.zero { color: var(--muted); font-weight: 500; }
+.exc .mono { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.col-sev { width: 96px; } .col-type { width: 148px; } .col-inv { width: 140px; } .col-vendor { width: 170px; }
+.col-amt { width: 126px; } .col-exp { width: auto; } .col-act { width: 220px; }
+.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.muted { color: var(--muted); }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; text-transform: capitalize; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.high { background: var(--high-bg); color: var(--high-fg); }
+.pill.high::before { background: var(--high-dot); }
+.pill.medium { background: var(--med-bg); color: var(--med-fg); }
+.pill.medium::before { background: var(--med-dot); }
+.pill.low { background: var(--low-bg); color: var(--low-fg); }
+.pill.low::before { background: var(--low-dot); }
+
+/* drawer */
+.scrim { position: fixed; inset: 0; background: rgba(20, 26, 40, .35); z-index: 10; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 94vw); background: var(--surface); z-index: 11;
+  box-shadow: -8px 0 32px rgba(20, 26, 40, .18); display: flex; flex-direction: column; transform: translateX(100%);
+  transition: transform .18s ease-out; }
+.drawer.open { transform: none; }
+.drawer-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: flex-start; }
+.drawer-head .titles { flex: 1; min-width: 0; }
+.drawer-head .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.drawer-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.drawer-head .vendor { color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.drawer-head .amount { text-align: right; flex: none; }
+.drawer-head .amount .label { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.drawer-head .amount .value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.close { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; font-size: 20px; line-height: 1; }
+.close:hover { background: #f1f3f7; }
+.drawer-body { padding: 8px 24px 32px; overflow-y: auto; flex: 1; }
+.drawer-body h3 { margin: 22px 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.drawer-body p { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.rowgroup { margin-top: 14px; }
+.rowgroup .cap { font-size: 13px; font-weight: 650; margin-bottom: 6px; }
+.rowgroup .cap .where { color: var(--muted); font-weight: 500; }
+.mini-wrap { border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+table.mini { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12.5px; }
+.mini th { text-align: left; font-weight: 650; color: var(--muted); background: #fafbfc; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.mini td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mini tr:last-child td { border-bottom: 0; }
+.mini .rn { position: sticky; left: 0; background: #fafbfc; font-weight: 650; border-right: 1px solid var(--border); }
+.mini td.blank { color: #8a93a2; }
+.none-note { color: var(--muted); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .wrap { padding: 0 16px; }
+  .zones, .stats, .skel-cards { grid-template-columns: 1fr; }
+  .actions { flex-wrap: wrap; }
+  .toolbar { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1>Invoice exception triage</h1>
+    <span class="tag" id="sample-tag" hidden>Synthetic demo data</span>
+    <span class="spacer"></span>
+    <button class="btn quiet" id="restart" type="button" hidden>Start over</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="view-start" aria-labelledby="start-title">
+    <div class="intro">
+      <h2 id="start-title">Find the invoices that do not add up</h2>
+      <p>Drop your three exports below. Every invoice is checked against its purchase order and its payments, and anything that does not match is listed with the rupees at risk.</p>
+    </div>
+    <div class="zones" id="zones"></div>
+    <div class="actions">
+      <button class="btn big" id="run" type="button" disabled>Run triage</button>
+      <span class="or">or</span>
+      <button class="btn big primary" id="sample" type="button">Use sample data</button>
+    </div>
+  </section>
+
+  <section id="view-loading" hidden aria-live="polite" aria-busy="true">
+    <div class="loading-head">
+      <div class="spinner" aria-hidden="true"></div>
+      <div><strong>Checking your invoices</strong><br><span class="sub">Matching each one to its purchase order and payments, then writing up what is wrong.</span></div>
+    </div>
+    <div class="skel-cards"><div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div></div>
+    <div class="skel-table">
+      <div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>
+      <div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>
+    </div>
+  </section>
+
+  <section id="view-error" hidden>
+    <div class="error-box" role="alert">
+      <h2 id="error-title">That did not work</h2>
+      <p id="error-message"></p>
+      <button class="btn primary" id="error-back" type="button">Back to the files</button>
+    </div>
+  </section>
+
+  <section id="view-results" hidden aria-label="Triage results">
+    <div class="stats" id="stats"></div>
+    <div class="notice" id="warnings" hidden></div>
+    <div class="toolbar">
+      <div class="chips" id="chips" role="group" aria-label="Filter by exception type"></div>
+      <a class="btn primary" id="download" href="/api/report.csv" download="exception-report.csv">Download CSV report</a>
+    </div>
+    <div class="table-wrap" id="table-wrap"></div>
+  </section>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true"></aside>
+
+<script>
+"use strict";
+
+const KINDS = [
+  { kind: "invoices", title: "Invoices", hint: "Purchase register from Tally or similar" },
+  { kind: "purchase_orders", title: "Purchase orders", hint: "PO export from Zoho Books or similar" },
+  { kind: "payments", title: "Payments", hint: "Bank or payment voucher export" },
+];
+
+const state = { uploaded: {}, data: null, filter: "all", selectedId: null, opener: null, view: "start" };
+const $ = (id) => document.getElementById(id);
+
+/* Small DOM helpers. Data only ever goes in through textContent or append(string), never as HTML. */
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+}
+function add(parent, ...kids) {
+  for (const kid of kids) if (kid) parent.append(kid);
+  return parent;
+}
+function clear(node) { node.replaceChildren(); return node; }
+
+function show(view) {
+  state.view = view;
+  for (const name of ["start", "loading", "error", "results"]) $("view-" + name).hidden = name !== view;
+  $("restart").hidden = view !== "results";
+  if (view !== "results") $("sample-tag").hidden = true;
+}
+
+async function api(path, options) {
+  let resp;
+  try {
+    resp = await fetch(path, options);
+  } catch (err) {
+    throw new Error("Cannot reach the triage server. Check that it is still running in the terminal, then try again.");
+  }
+  let body = null;
+  try { body = await resp.json(); } catch (err) { /* not JSON */ }
+  if (!resp.ok) throw new Error((body && body.error) || "The server answered with an error (" + resp.status + "). Try again.");
+  return body;
+}
+
+/* ---------- start view: three drop zones ---------- */
+
+const zoneParts = {};
+
+function buildZones() {
+  const host = $("zones");
+  for (const spec of KINDS) {
+    const zone = el("div", "zone");
+    zone.tabIndex = 0;
+    zone.setAttribute("role", "button");
+    zone.setAttribute("aria-label", spec.title + ": drop a CSV file or press Enter to choose one");
+    const input = el("input");
+    input.type = "file";
+    input.accept = ".csv,text/csv";
+    input.hidden = true;
+    const glyph = el("div", "glyph", "+");
+    glyph.setAttribute("aria-hidden", "true");
+    const status = el("div", "zone-status");
+    status.setAttribute("aria-live", "polite");
+    add(zone, input, glyph, el("div", "zone-title", spec.title), el("div", "zone-hint", spec.hint), status);
+    host.append(zone);
+    zoneParts[spec.kind] = { zone, glyph, status };
+    setZone(spec.kind, "empty");
+
+    zone.addEventListener("click", () => { if (!zone.classList.contains("is-busy")) input.click(); });
+    zone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+    });
+    input.addEventListener("change", () => { handleFile(spec.kind, input.files[0]); input.value = ""; });
+    zone.addEventListener("dragenter", (e) => { e.preventDefault(); zone.classList.add("is-over"); });
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("is-over"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("is-over"));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("is-over");
+      handleFile(spec.kind, e.dataTransfer.files[0]);
+    });
+  }
+  // A file dropped beside a zone should not make the browser open it.
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("drop", (e) => e.preventDefault());
+}
+
+function setZone(kind, mode, info) {
+  const { zone, glyph, status } = zoneParts[kind];
+  zone.classList.remove("is-ok", "is-error", "is-busy");
+  clear(status);
+  if (mode === "empty") {
+    glyph.textContent = "+";
+    status.textContent = "Drop a CSV here or click to browse";
+  } else if (mode === "busy") {
+    zone.classList.add("is-busy");
+    status.textContent = "Reading " + info + "...";
+  } else if (mode === "ok") {
+    zone.classList.add("is-ok");
+    glyph.textContent = "✓";
+    add(status, el("span", "fname", info.filename), el("span", null, " · " + info.rows + " rows"));
+  } else if (mode === "error") {
+    zone.classList.add("is-error");
+    glyph.textContent = "!";
+    status.textContent = info;
+  }
+}
+
+async function handleFile(kind, file) {
+  if (!file) return;
+  setZone(kind, "busy", file.name);
+  delete state.uploaded[kind];
+  updateRunButton();
+  try {
+    const body = await api("/api/upload/" + kind, {
+      method: "POST",
+      headers: { "X-Filename": encodeURIComponent(file.name), "Content-Type": "text/csv" },
+      body: file,
+    });
+    state.uploaded[kind] = body;
+    setZone(kind, "ok", body);
+  } catch (err) {
+    setZone(kind, "error", err.message);
+  }
+  updateRunButton();
+}
+
+function updateRunButton() {
+  const ready = KINDS.every((k) => state.uploaded[k.kind]);
+  $("run").disabled = !ready;
+  $("run").classList.toggle("primary", ready);
+  $("sample").classList.toggle("primary", !ready);
+}
+
+/* ---------- running ---------- */
+
+async function run(path, options) {
+  show("loading");
+  try {
+    const data = await api(path, options);
+    renderResults(data);
+    show("results");
+    $("sample-tag").hidden = data.source !== "sample";
+    window.scrollTo(0, 0);
+  } catch (err) {
+    $("error-message").textContent = err.message;
+    show("error");
+  }
+}
+
+/* ---------- results ---------- */
+
+function renderResults(data) {
+  state.data = data;
+  state.filter = "all";
+  closeDrawer(false);
+  renderStats(data);
+  renderWarnings(data);
+  renderChips(data);
+  renderTable();
+}
+
+function stat(label, value, extraClass) {
+  const card = el("div", "stat" + (extraClass ? " " + extraClass : ""));
+  const sub = el("div", "sub");
+  add(card, el("div", "label", label), el("div", "value", value), sub);
+  return { card, sub };
+}
+
+function renderStats(data) {
+  const t = data.totals;
+  const checked = stat("Invoices checked", String(t.invoices_checked));
+  checked.sub.textContent = "Each one matched to its PO and payments";
+  const found = stat("Exceptions found", String(t.exceptions_found));
+  if (t.high_count > 0) add(found.sub, el("span", "pill high", t.high_count + " high"), el("span", null, "need attention first"));
+  else found.sub.textContent = t.exceptions_found ? "None are high severity" : "Everything matched";
+  const risk = stat("Amount at risk", t.amount_at_risk_display, "risk");
+  risk.sub.textContent = "Biggest first in the table below";
+  add(clear($("stats")), checked.card, found.card, risk.card);
+}
+
+function renderWarnings(data) {
+  const box = clear($("warnings"));
+  box.hidden = !data.warnings.length;
+  if (!data.warnings.length) return;
+  box.append(el("strong", null, data.warnings.length === 1 ? "One thing to know" : data.warnings.length + " things to know"));
+  const list = el("ul");
+  for (const w of data.warnings.slice(0, 8)) list.append(el("li", null, w));
+  if (data.warnings.length > 8) list.append(el("li", null, "and " + (data.warnings.length - 8) + " more"));
+  box.append(list);
+}
+
+function renderChips(data) {
+  const labels = {};
+  for (const e of data.exceptions) labels[e.type] = e.type_label;
+  const types = Object.keys(data.totals.by_type).sort((a, b) => data.totals.by_type[b] - data.totals.by_type[a]);
+  const host = clear($("chips"));
+  const make = (value, label, count) => {
+    const chip = el("button", "chip");
+    chip.type = "button";
+    chip.dataset.value = value;
+    chip.setAttribute("aria-pressed", String(state.filter === value));
+    add(chip, el("span", null, label), el("span", "n", String(count)));
+    chip.addEventListener("click", () => { state.filter = value; renderChips(data); renderTable(); });
+    host.append(chip);
+  };
+  make("all", "All", data.exceptions.length);
+  for (const type of types) make(type, labels[type], data.totals.by_type[type]);
+}
+
+const COLUMNS = [
+  ["col-sev", "Severity"], ["col-type", "Type"], ["col-inv", "Invoice no"], ["col-vendor", "Vendor"],
+  ["col-amt num", "Amount at risk"], ["col-exp", "Explanation"], ["col-act", "Suggested action"],
+];
+
+function renderTable() {
+  const wrap = clear($("table-wrap"));
+  const rows = state.data.exceptions.filter((e) => state.filter === "all" || e.type === state.filter);
+  if (!rows.length) {
+    wrap.append(el("div", "empty", state.data.exceptions.length ? "Nothing of that type." : "No exceptions found. Every invoice matched its purchase order and payments."));
+    return;
+  }
+  const table = el("table", "exc");
+  const head = el("tr");
+  for (const [cls, label] of COLUMNS) {
+    const th = el("th", cls, label);
+    th.scope = "col";
+    head.append(th);
+  }
+  add(table, add(el("thead"), head));
+  const body = el("tbody");
+  for (const exc of rows) body.append(tableRow(exc));
+  table.append(body);
+  wrap.append(table);
+}
+
+function clampCell(cls, text, placeholder) {
+  const td = el("td", cls);
+  const inner = el("div", "clamp" + (text ? "" : " muted"), text || placeholder);
+  if (text) inner.title = text;
+  td.append(inner);
+  return td;
+}
+
+function tableRow(exc) {
+  const tr = el("tr");
+  tr.tabIndex = 0;
+  tr.dataset.id = exc.id;
+  if (exc.id === state.selectedId) tr.classList.add("selected");
+  tr.setAttribute("aria-label", exc.type_label + " on invoice " + exc.invoice_no + ", open details");
+  const sev = el("td");
+  sev.append(el("span", "pill " + exc.severity, exc.severity));
+  const inv = el("td", "mono", exc.invoice_no);
+  const vendor = clampCell("", exc.vendor, "");
+  const amt = el("td", "num" + (exc.amount_at_risk === 0 ? " zero" : ""), exc.amount_at_risk_display);
+  add(tr, sev, el("td", null, exc.type_label), inv, vendor, amt,
+      clampCell("", exc.explanation, "No explanation yet"), clampCell("", exc.suggested_action, ""));
+  tr.addEventListener("click", () => openDrawer(exc, tr));
+  tr.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(exc, tr); }
+  });
+  return tr;
+}
+
+/* ---------- detail drawer ---------- */
+
+function openDrawer(exc, opener) {
+  state.selectedId = exc.id;
+  state.opener = opener;
+  for (const row of document.querySelectorAll("#table-wrap tr.selected")) row.classList.remove("selected");
+  if (opener) opener.classList.add("selected");
+  const drawer = clear($("drawer"));
+
+  const close = el("button", "close", "×");
+  close.type = "button";
+  close.id = "drawer-close";
+  close.setAttribute("aria-label", "Close details");
+  close.addEventListener("click", () => closeDrawer(true));
+
+  const titles = el("div", "titles");
+  const title = el("h2", null, "Invoice " + exc.invoice_no);
+  title.id = "drawer-title";
+  add(titles,
+      add(el("div", "eyebrow"), el("span", "pill " + exc.severity, exc.severity), el("span", null, exc.type_label + " · " + exc.id)),
+      title, el("div", "vendor", exc.vendor));
+  const amount = add(el("div", "amount"), el("div", "label", "Amount at risk"), el("div", "value", exc.amount_at_risk_display));
+  drawer.append(add(el("div", "drawer-head"), titles, amount, close));
+
+  const body = el("div", "drawer-body");
+  add(body, el("h3", null, "What we found"),
+      el("p", exc.explanation ? null : "none-note", exc.explanation || "No explanation is available for this one."),
+      el("h3", null, "Suggested action"), el("p", null, exc.suggested_action),
+      el("h3", null, "Rows involved"));
+  for (const spec of KINDS) body.append(rowGroup(spec.kind, exc.rows[spec.kind] || []));
+  drawer.append(body);
+
+  $("scrim").hidden = false;
+  drawer.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => drawer.classList.add("open"));
+  close.focus();
+}
+
+function rowGroup(kind, rows) {
+  const info = state.data.files[kind];
+  const group = el("div", "rowgroup");
+  const cap = el("div", "cap", info.filename);
+  if (!rows.length) {
+    add(group, cap, el("div", "none-note", kind === "purchase_orders" ? "No purchase order is linked to this invoice." : "No payments are linked to this invoice."));
+    return group;
+  }
+  const numbers = rows.map((r) => r.row);
+  cap.append(el("span", "where", " · " + (numbers.length === 1 ? "row " : "rows ") + numbers.join(", ")));
+  const table = el("table", "mini");
+  const headRow = el("tr");
+  const rowTh = el("th", "rn", "Row");
+  rowTh.scope = "col";
+  headRow.append(rowTh);
+  const headers = info.header.length ? info.header : Object.keys(rows[0].cells);
+  for (const h of headers) {
+    const th = el("th", null, h);
+    th.scope = "col";
+    headRow.append(th);
+  }
+  const tbody = el("tbody");
+  for (const r of rows) {
+    const tr = el("tr");
+    tr.append(el("td", "rn", String(r.row)));
+    for (const h of headers) {
+      const value = r.cells[h];
+      tr.append(value ? el("td", null, value) : el("td", "blank", "—"));
+    }
+    tbody.append(tr);
+  }
+  add(table, add(el("thead"), headRow), tbody);
+  add(group, cap, add(el("div", "mini-wrap"), table));
+  return group;
+}
+
+function closeDrawer(restoreFocus) {
+  const drawer = $("drawer");
+  const opener = state.opener;
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
+  $("scrim").hidden = true;
+  for (const row of document.querySelectorAll("#table-wrap tr.selected")) row.classList.remove("selected");
+  state.selectedId = null;
+  state.opener = null;
+  if (restoreFocus && opener && document.contains(opener)) opener.focus();
+}
+
+document.addEventListener("keydown", (e) => {
+  const drawer = $("drawer");
+  if (!drawer.classList.contains("open")) return;
+  if (e.key === "Escape") { e.preventDefault(); closeDrawer(true); return; }
+  if (e.key === "Tab") {  // keep keyboard focus inside the open drawer
+    const items = drawer.querySelectorAll("button, [href], input, [tabindex]:not([tabindex='-1'])");
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+$("scrim").addEventListener("click", () => closeDrawer(true));
+
+/* ---------- wiring ---------- */
+
+$("run").addEventListener("click", () => run("/api/triage", { method: "POST" }));
+$("sample").addEventListener("click", () => run("/api/sample"));
+$("restart").addEventListener("click", () => { closeDrawer(false); show("start"); });
+$("error-back").addEventListener("click", () => show("start"));
+
+buildZones();
+updateRunButton();
+show("start");
+</script>
+</body>
+</html>
