@@ -110,6 +110,13 @@ def test_parse_qty(text, expected):
     assert parse_qty(text) == expected
 
 
+def test_parse_qty_accepts_negative_quantities():
+    problems: list[str] = []
+    assert parse_qty("-5", problems) == -5.0
+    assert parse_qty("-1,000 pcs", problems) == -1000.0
+    assert problems == []
+
+
 def test_parse_qty_garbage_warns():
     problems: list[str] = []
     assert parse_qty("lots", problems) is None
@@ -121,6 +128,12 @@ def test_parse_qty_garbage_warns():
 ])
 def test_parse_gst_rate(text, expected):
     assert parse_gst_rate(text) == expected
+
+
+@pytest.mark.parametrize("text", ["CGST 9%", "SGST 9%", "sgst 9", "CGST 9.00 %"])
+def test_half_rates_written_as_cgst_or_sgst_become_the_combined_rate(text):
+    problems: list[str] = []
+    assert parse_gst_rate(text, problems) == 18.0 and problems == []
 
 
 # ---- keys ----

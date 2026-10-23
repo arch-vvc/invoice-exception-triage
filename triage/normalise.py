@@ -74,7 +74,7 @@ def parse_date(text: str, warnings: Warnings = None) -> date | None:
     return None
 
 
-_QTY = re.compile(r"^(\d[\d,]*(?:\.\d+)?)(?:\s*[A-Za-z][A-Za-z.\s]*)?$")
+_QTY = re.compile(r"^(-?\d[\d,]*(?:\.\d+)?)(?:\s*[A-Za-z][A-Za-z.\s]*)?$")
 
 
 def parse_qty(text: str, warnings: Warnings = None) -> float | None:
@@ -89,11 +89,11 @@ def parse_qty(text: str, warnings: Warnings = None) -> float | None:
     return _round2(match.group(1).replace(",", ""))
 
 
-_GST_RATE = re.compile(r"^(?:[A-Za-z]+\s*)?(\d+(?:\.\d+)?)\s*%?$")
+_GST_RATE = re.compile(r"^(?:([A-Za-z]+)\s*)?(\d+(?:\.\d+)?)\s*%?$")
 
 
 def parse_gst_rate(text: str, warnings: Warnings = None) -> float | None:
-    """'18', '18%', '18.00 %' and 'IGST 18%' all give 18.0 (always a percent)."""
+    """'18', '18%', '18.00 %' and 'IGST 18%' all give 18.0. 'CGST 9%' or 'SGST 9%' is half of 18%, so it gives 18.0."""
     cleaned = text.strip()
     if cleaned.upper() in _BLANKS:
         return None
@@ -101,7 +101,8 @@ def parse_gst_rate(text: str, warnings: Warnings = None) -> float | None:
     if not match:
         _warn(warnings, f"could not read GST rate '{cleaned}'")
         return None
-    return float(match.group(1))
+    half = (match.group(1) or "").upper() in ("CGST", "SGST", "UTGST")
+    return float(match.group(2)) * (2 if half else 1)
 
 
 def is_gst_slab(rate: float) -> bool:

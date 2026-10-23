@@ -152,30 +152,55 @@ def _link_pos(invoices: list[Invoice], pos: list[PurchaseOrder]) -> dict[Invoice
     return linked
 
 
+# Words too common in Indian business names to say two vendors are the same.
+GENERIC_NAME_WORDS = {
+    "AND", "TRADERS", "TRADER", "TRADING", "TRADE", "ENTERPRISES", "ENTERPRISE", "INDUSTRIES", "INDUSTRY", "SONS",
+    "BROTHERS", "BROS", "WORKS", "SERVICES", "SUPPLIERS", "SUPPLIES", "SALES", "AGENCIES", "AGENCY", "CORPORATION",
+    "CORP", "GROUP", "INDIA",
+}
+
+
 def _link_payments(payments: list[Payment], invoices: list[Invoice], tol: Tolerance):
-    """Return ({invoice: its payments}, unmatched payments)."""
+    """Return ({invoice: its payments}, [(unmatched payment, reason)])."""
     by_key: dict[str, list[Invoice]] = defaultdict(list)
     for inv in sorted(invoices, key=lambda i: i.source_row):
         by_key[inv.invoice_key].append(inv)
     paid_by: dict[Invoice, list[Payment]] = defaultdict(list)
     unmatched = []
     for pay in payments:
-        invoice = _match_payment(pay, by_key, invoices, tol)
+        invoice, reason = _match_payment(pay, by_key, invoices, tol)
         if invoice:
             paid_by[invoice].append(pay)
         else:
-            unmatched.append(pay)
+            unmatched.append((pay, reason))
     return paid_by, unmatched
 
 
+def _name_overlap(a: str, b: str) -> int:
+    """How many distinctive words two vendor keys share."""
+    return len((set(a.split()) & set(b.split())) - GENERIC_NAME_WORDS)
+
+
 def _match_payment(pay: Payment, by_key: dict[str, list[Invoice]], invoices: list[Invoice], tol: Tolerance):
+    """Return (invoice or None, reason it could not be matched)."""
+    unmatched = f"Payment {pay.payment_id} (payments row {pay.source_row}) could not be matched to an invoice."
     if pay.invoice_key:
         candidates = by_key.get(pay.invoice_key, [])
-        # Earliest invoice with that number; if several vendors reuse it, prefer the payee's.
-        return next((i for i in candidates if i.vendor_key == pay.payee_key), candidates[0] if candidates else None)
+        if len(candidates) <= 1:
+            return (candidates[0] if candidates else None), unmatched
+        # Several vendors reuse this bill number: take the payee's own, else the one name that fits best.
+        exact = next((i for i in candidates if i.vendor_key == pay.payee_key), None)
+        if exact:
+            return exact, ""
+        scores = [_name_overlap(i.vendor_key, pay.payee_key) for i in candidates]
+        if max(scores) > 0 and scores.count(max(scores)) == 1:
+            return candidates[scores.index(max(scores))], ""
+        return None, (f"Payment {pay.payment_id} (payments row {pay.source_row}) was not matched: bill number "
+                      f"{candidates[0].invoice_no} belongs to several vendors and none clearly matches "
+                      f"'{pay.payee}'.")
     fits = [i for i in invoices if i.vendor_key == pay.payee_key and i.total is not None
             and tol.amount_ok(i.total - pay.settled, i.total)]
-    return fits[0] if len(fits) == 1 else None
+    return (fits[0] if len(fits) == 1 else None), unmatched
 
 
 class Overrun(NamedTuple):
@@ -309,14 +334,30 @@ def _invoice_exceptions(inv: Invoice, po: PurchaseOrder | None, overrun: Overrun
     return [exc for exc in found if exc]
 
 
+def _is_credit_note(inv: Invoice) -> bool:
+    return any(value is not None and value < 0 for value in (inv.total, inv.taxable_value, inv.qty))
+
+
+def _repeated_po_warnings(pos: list[PurchaseOrder]) -> list[str]:
+    seen: set[str] = set()
+    warnings = []
+    for po in sorted(pos, key=lambda p: p.source_row):
+        if po.po_key and po.po_key in seen:
+            warnings.append(f"{po.po_no} appears more than once; the first row is used.")
+        seen.add(po.po_key)
+    return warnings
+
+
 # ---- entry points ----
 
 def triage(invoices: list[Invoice], pos: list[PurchaseOrder], payments: list[Payment],
            tol: Tolerance | None = None) -> TriageResult:
     """Link the three lists, run every check, and return the exceptions sorted by rupees at risk."""
     tol = tol or Tolerance()
-    duplicates = _find_duplicates(invoices, tol)
-    live = [inv for inv in invoices if inv not in duplicates]
+    credit_notes = [inv for inv in invoices if _is_credit_note(inv)]
+    checked = [inv for inv in invoices if inv not in credit_notes]
+    duplicates = _find_duplicates(checked, tol)
+    live = [inv for inv in checked if inv not in duplicates]
     po_for = _link_pos(live, pos)
     overruns = _quantity_overruns(po_for, tol)
     paid_by, unmatched = _link_payments(payments, live, tol)
@@ -330,10 +371,14 @@ def triage(invoices: list[Invoice], pos: list[PurchaseOrder], payments: list[Pay
 
     return TriageResult(
         invoices=invoices, purchase_orders=pos, payments=payments, exceptions=found,
-        warnings=[f"Payment {p.payment_id} (payments row {p.source_row}) could not be matched to an invoice."
-                  for p in unmatched],
-        unmatched_payment_ids=[p.payment_id for p in unmatched],
-        invoices_checked=len(invoices),
+        warnings=[
+            *(f"Row {inv.source_row} ({inv.invoice_no}) looks like a credit note and was not matched. "
+              "Credit notes are not supported yet." for inv in credit_notes),
+            *_repeated_po_warnings(pos),
+            *(reason for _, reason in unmatched),
+        ],
+        unmatched_payment_ids=[p.payment_id for p, _ in unmatched],
+        invoices_checked=len(checked),
         amount_at_risk=round(sum(e.amount_at_risk for e in found), 2),
     )
 
