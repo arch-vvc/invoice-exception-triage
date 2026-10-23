@@ -18,10 +18,10 @@ Needs Python 3.10 or newer. Nothing to install to run it, because the demo uses 
 invoices checked: 40
 exceptions found: 16
 amount at risk: ₹7,11,230
-explanations cached: 0/16
+explanations cached: 16/16
 answer key: 16/16 matched, 0 extra
 ```
-`explanations cached` is 0 until someone runs `--refresh` (see Explanations). The dashboard works the same either way.
+`explanations cached` is 16/16 because the Haiku sentences for the sample data are committed in `sample_data/explanations_cache.json`. Delete that file and the count drops to 0/16; the dashboard then falls back to the built in templates (see Explanations).
 
 If port 8765 is busy, pass `--port 8800` (or any free port).
 
