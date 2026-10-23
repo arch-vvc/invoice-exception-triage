@@ -107,6 +107,7 @@ def _decode(data: bytes, filename: str) -> str:
         text = "\x00"  # same message as any other binary junk
     if "\x00" in text:
         raise InputError(f"{filename} is not UTF-8 text. {EXCEL_HINT}")
+    text = text.lstrip("\ufeff")  # a second BOM, which some exporters write after the first
     if not text.strip():
         raise InputError(f"{filename} is empty. Export it again and upload the new file.")
     return text
