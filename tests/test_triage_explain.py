@@ -1,6 +1,7 @@
 """Explanations: offline templates, model backends (always faked here), validation and the cache file."""
 import json
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,7 @@ def test_every_type_on_sample_data_has_an_offline_sentence(sample_excs):
         assert exc.facts["invoice_no"] in text, text
         assert text.endswith("."), text
         assert "\n" not in text and len(text) <= 300, text
-        assert is_valid_sentence(text, exc.facts), text
+        assert is_valid_sentence(text, exc.facts, exc.amount_at_risk), text
 
 
 @pytest.mark.parametrize("reason", ["missing", "format", "checksum", "slab", "rate_vs_po", "amount"])
@@ -201,6 +202,7 @@ def test_claude_cli_runner_command(monkeypatch):
     argv, kwargs = calls[0]
     assert argv == ["claude", "-p", "--model", "haiku"]
     assert kwargs["input"] == "hello" and kwargs["timeout"] == 60 and not kwargs.get("shell")
+    assert kwargs["cwd"] == tempfile.gettempdir(), "must not load this repo's CLAUDE.md and hooks"
 
 
 def test_anthropic_request_shape(monkeypatch):
@@ -301,9 +303,121 @@ def test_cache_entries_are_grounded(sample_excs):
     for fp, entry in entries.items():
         exc = by_fp[fp]
         assert entry["type"] == exc.type
-        assert is_valid_sentence(entry["text"], exc.facts), f"{exc.id}: {entry['text']}"
+        assert is_valid_sentence(entry["text"], exc.facts, exc.amount_at_risk), f"{exc.id}: {entry['text']}"
 
 
 def test_committed_cache_file_is_valid_json():
     data = json.loads(COMMITTED_CACHE.read_text(encoding="utf-8"))
     assert data["version"] == 1 and isinstance(data["entries"], dict)
+
+
+# ---- fix round 1 ----
+
+def rate_exc(**changes) -> TriageException:
+    facts = {"qty": 500.0, "invoice_rate": 12.5, "invoice_rate_display": "₹13", "po_rate": 12.0,
+             "po_rate_display": "₹12", "diff": 250.0, "diff_display": "₹250"} | changes
+    return make_exc(kind="amount_mismatch", **facts)
+
+
+def test_fractional_rates_are_shown_to_two_decimals():
+    exc = rate_exc()
+    text = offline_sentence(exc)
+    assert "₹12.50 a unit against ₹12 on PO-1" in text and "₹13" not in text
+    assert is_valid_sentence(text, exc.facts, exc.amount_at_risk)
+    assert not is_valid_sentence(text.replace("₹12.50", "₹13"), exc.facts, exc.amount_at_risk)
+    assert "₹12.50" in explain.build_prompt(exc)
+
+
+def test_rates_use_indian_grouping():
+    exc = rate_exc(invoice_rate=12345.5, po_rate=12000.0, po_rate_display="₹12,000")
+    assert "₹12,345.50 a unit against ₹12,000 on" in offline_sentence(exc)
+
+
+def test_numbers_use_indian_grouping_not_scientific():
+    assert explain._num(1600.0) == "1,600"
+    assert explain._num(1234567.0) == "12,34,567"
+    assert explain._num(12.5) == "12.5"
+    assert explain._num(1234567.25) == "12,34,567.25"
+    assert explain._num(18.0) == "18" and explain._num(0.25) == "0.25"
+    big = make_exc(kind="quantity_mismatch", invoiced_qty=1234567.0, po_qty=1200000.0, excess_qty=34567.0)
+    assert "12,34,567 units against 12,00,000 ordered" in offline_sentence(big)
+
+
+def test_missing_po_wording(sample_excs):
+    no_ref = next(e for e in sample_excs if e.facts["invoice_no"] == "AS/0071")
+    assert offline_sentence(no_ref).startswith(
+        "Invoice AS/0071 from Apex Safety Products quotes no PO and none matches, "
+        "so there is no approved order behind this ₹")
+    bad_ref = next(e for e in sample_excs if e.facts["invoice_no"] == "OSE/2024/361")
+    text = offline_sentence(bad_ref)
+    assert "quotes PO-00999, which does not exist in the PO file" in text and "bill." in text
+
+
+def test_rate_vs_po_sentence_states_rupee_impact(sample_excs):
+    exc = next(e for e in sample_excs if e.facts.get("reason") == "rate_vs_po")
+    text = offline_sentence(exc)
+    assert explain.format_inr(exc.amount_at_risk) in text
+    assert is_valid_sentence(text, exc.facts, exc.amount_at_risk)
+
+
+def test_prompt_explains_what_each_type_means(sample_excs):
+    ref = make_exc(kind="missing_po", po_ref_given="PO-00999")
+    blank = make_exc(kind="missing_po", po_ref_given="")
+    assert "no such PO exists in the PO file" in explain.build_prompt(ref)
+    assert "quotes no PO and none could be matched" in explain.build_prompt(blank)
+    for exc in sample_excs:
+        prompt = explain.build_prompt(exc)
+        assert f'starting with "Invoice {exc.facts["invoice_no"]}"' in prompt
+        assert explain.meaning(exc) in prompt
+    checksum = next(e for e in sample_excs if e.facts.get("reason") == "checksum")
+    assert "check digit" in explain.meaning(checksum)
+
+
+def test_validation_rejects_markdown_and_partial_invoice_numbers():
+    facts = make_exc().facts
+    assert not is_valid_sentence("Invoice INV-9 has **₹40,000** outstanding.", facts)
+    assert not is_valid_sentence("Invoice INV-9 has `₹40,000` outstanding.", facts)
+    assert not is_valid_sentence("# Invoice INV-9 has ₹40,000 outstanding.", facts)
+    assert not is_valid_sentence("Invoice INV-90 has ₹40,000 outstanding.", facts)
+    assert not is_valid_sentence("Invoice XINV-9 has ₹40,000 outstanding.", facts)
+    assert is_valid_sentence("Invoice INV-9, from Test Traders, has ₹40,000 outstanding.", facts)
+
+
+def test_validation_compares_amounts_numerically():
+    facts = make_exc().facts
+    assert is_valid_sentence("Invoice INV-9 is for ₹1,00,000.00 in total.", facts)
+    assert is_valid_sentence("Invoice INV-9 is for Rs 100000 in total.", facts)
+    assert not is_valid_sentence("Invoice INV-9 is for ₹1,00,001 in total.", facts)
+
+
+def test_validation_rejects_bare_numbers_followed_by_rupees():
+    facts = make_exc().facts
+    assert is_valid_sentence("Invoice INV-9 is short by 40,000 rupees.", facts)
+    assert not is_valid_sentence("Invoice INV-9 is short by 41,000 rupees.", facts)
+    assert not is_valid_sentence("Invoice INV-9 is short by 41000 rupee.", facts)
+
+
+def test_amount_at_risk_is_an_allowed_amount():
+    facts = {"invoice_no": "AS/0071", "vendor": "Apex", "po_no": "", "po_ref_given": ""}
+    text = "Invoice AS/0071 is a ₹1,29,800 bill."
+    assert not is_valid_sentence(text, facts)
+    assert is_valid_sentence(text, facts, 129800.0)
+
+
+def test_refresh_drops_cached_entries_that_fail_validation(tmp_path):
+    cache = tmp_path / "c.json"
+    exc = make_exc()
+    bad = {"text": "Invoice INV-9 is short by ₹41,000.", "backend": "claude-cli", "type": "partial_payment"}
+    cache.write_text(json.dumps({"version": 1, "entries": {fingerprint(exc): bad}}), encoding="utf-8")
+    out = explain_all([exc], backend="claude-cli", cache_path=cache, refresh=True, runner=lambda p: "")
+    assert out == {"EX-01": offline_sentence(exc)}
+    assert json.loads(cache.read_text(encoding="utf-8"))["entries"] == {}
+
+
+def test_cache_is_written_through_a_temp_file_in_the_same_folder(monkeypatch, tmp_path):
+    seen = []
+    real_mkstemp = tempfile.mkstemp
+    monkeypatch.setattr(explain.tempfile, "mkstemp", lambda **kw: seen.append(kw) or real_mkstemp(**kw))
+    explain_all([make_exc()], backend="claude-cli", cache_path=tmp_path / "c.json", runner=lambda p: GOOD)
+    assert [Path(kw["dir"]) for kw in seen] == [tmp_path]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["c.json"]
