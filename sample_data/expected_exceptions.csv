@@ -1,0 +1,17 @@
+exception_type,invoice_no,vendor,po_no,payment_refs,invoice_row,amount_at_risk,severity,planted_note
+duplicate_invoice,INV/42,Sundaram Brake Linings Pvt Ltd,,,17,145140.00,high,"SYNTHETIC: same vendor and same bill as INV-0042, rewritten with different separators."
+missing_po,AS/0071,Apex Safety Products,,,22,129800.00,high,SYNTHETIC: Order No is blank and Apex Safety Products has no PO on file.
+duplicate_invoice,SE-24-25-107,Sai Engineering Works,,,31,90624.00,high,"SYNTHETIC: same vendor and same bill as SE/24-25/0107, rewritten with different separators."
+overpayment,SGS/0455,Shree Ganesh Steels,PO-00105,PV/24-25/0128;PV/24-25/0129,39,87320.00,high,SYNTHETIC: the invoice was paid twice by two separate bank transfers.
+partial_payment,AP/0925,Aarav Paints and Coatings Pvt Ltd,PO-00120,PV/24-25/0109,14,87200.00,medium,SYNTHETIC: only part of the invoice has been paid and no further payment is on file.
+missing_po,OSE/2024/361,Om Sai Electricals,,,35,47200.00,medium,SYNTHETIC: Order No PO-00999 does not exist in the PO file.
+gst_error,INV-0215,Sundaram Brake Linings Pvt Ltd,PO-00109,,36,29808.00,high,"SYNTHETIC: GSTIN has the right shape but the wrong check character, a likely typo."
+quantity_mismatch,DBS-0731,Deccan Bearings & Spares,PO-00118,,10,26196.00,high,SYNTHETIC: billing runs past the PO quantity of 600 Nos.
+partial_payment,KP/24-25/0189,KUMAR PACKAGING PRIVATE LIMITED,PO-00103,PV/24-25/0130,38,18440.00,low,SYNTHETIC: only part of the invoice has been paid and no further payment is on file.
+gst_error,HL/2425/231,Hindustan Lubricants Distributors,PO-00123,,37,17010.00,high,"SYNTHETIC: GSTIN has a letter where a digit belongs, a likely scan error."
+amount_mismatch,GAC/118,Gujarat Alloy Castings Ltd,PO-00127,,13,16520.00,high,"SYNTHETIC: vendor billed 668.00 a unit against a PO rate of 640.00, more than 3 percent over."
+gst_error,OSE/2024/338,Om Sai Electricals,PO-00124,,25,9600.00,medium,SYNTHETIC: invoice charges 18 percent GST while the PO was raised at 12 percent.
+amount_mismatch,MTW/1043,Mahalakshmi Tooling Works,PO-00114,,19,3540.00,medium,"SYNTHETIC: vendor billed 3,300.00 a unit against a PO rate of 3,150.00, more than 3 percent over."
+quantity_mismatch,BR/24/2330,Bharat Rubber Industries,PO-00116,,33,2832.00,medium,"SYNTHETIC: billing runs past the PO quantity of 1,500 pcs."
+vendor_name_mismatch,SGS/0412,Sri Ganesh Steel,PO-00104,,12,0.00,low,SYNTHETIC: invoice vendor is spelled differently from the PO vendor (Shree Ganesh Steels).
+vendor_name_mismatch,VF/0577,Sri Venkateswara Fasteners Pvt Ltd,PO-00106,,23,0.00,low,SYNTHETIC: invoice vendor is spelled differently from the PO vendor (Venkateswara Fasteners).
