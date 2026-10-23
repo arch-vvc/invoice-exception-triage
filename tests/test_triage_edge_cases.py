@@ -35,7 +35,7 @@ ENTRY_POINTS = [pytest.param(via_load_table, id="load_table"), pytest.param(via_
 
 def sentences(message: str) -> int:
     """Sentences in the message, not counting the 'We looked for: ... Found: ...' lists of a missing column."""
-    prose = re.sub(r"\s*We looked for:.*?Found:.*?\.\s*", " ", message)
+    prose = re.sub(r"\s*We looked for:.*?found:.*?\.\s*", " ", message)
     return len(re.findall(r"[.!?](?:\s|$)", prose))
 
 
@@ -107,7 +107,7 @@ def test_missing_required_column_lists_what_we_looked_for(entry):
     assert "We looked for" in message
     for alias in ("Order No", "PO No", "PO Number"):
         assert alias in message
-    assert "Found:" in message or "found:" in message
+    assert "found:" in message
     assert "Party Name" in message  # shows the columns it did find
 
 
@@ -222,6 +222,25 @@ def test_an_error_in_one_file_names_that_file_only():
         triage_bytes(files)
     assert "payments.csv" in str(caught.value)
     assert "invoices.csv" not in str(caught.value)
+
+
+@pytest.mark.parametrize("entry", ENTRY_POINTS)
+def test_blank_lines_before_the_header_do_not_crash(entry):
+    row = "03/04/2024,INV-1,Acme,27ABCDE1234F1Z0,PO-1,Bolts,10,100,1000,18,180,1180"
+    data = b"\n" * 11 + f"{INVOICE_HEADER}\n{row}\n".encode()
+    if entry is via_load_table:
+        assert len(entry("invoices", data).rows) == 1
+    else:
+        entry("invoices", data)  # the other two sample files are fine; only invoices has blank lines
+
+
+@pytest.mark.parametrize("entry", ENTRY_POINTS)
+def test_header_pushed_past_ten_lines_is_an_input_error(entry):
+    notes = "".join(f"note {i}\n" for i in range(11))
+    data = f"{notes}{INVOICE_HEADER}\n03/04/2024,INV-1,Acme\n".encode()
+    with pytest.raises(InputError) as caught:
+        entry("invoices", data)
+    assert_friendly(caught.value, "invoices.csv")
 
 
 # ---- formats that must be accepted, and must give the same answer as the sample ----

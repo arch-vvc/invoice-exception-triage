@@ -27,17 +27,21 @@ def _round2(value: str | float) -> float:
 
 # ---- amounts, dates, quantities, rates ----
 
-_AMOUNT = re.compile(r"^(?:₹|rs\.?|inr)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:dr|cr)?$", re.IGNORECASE)
+_AMOUNT = re.compile(r"^(?:₹|rs\.?|inr)?\s*(-?\d[\d,]*(?:\.\d+)?)$", re.IGNORECASE)
+_AMOUNT_SUFFIX = re.compile(r"(?:\s*/-|\s*(?:dr|cr)\.?)+$", re.IGNORECASE)  # '/-' and 'Dr' / 'Cr'
 
 
 def parse_amount(text: str, warnings: Warnings = None) -> float | None:
-    """'₹1,18,000', 'Rs. 45,000', '45,000.00 Dr' and '(1,000.00)' -> float. Blank, '-' and 'NA' -> None."""
+    """'₹1,18,000/-', 'Rs. 45,000', '45,000.00 Dr', '(1,000.00)' and '1,000.00-' -> float. Blank, '-', 'NA' -> None."""
     cleaned = text.strip()
     if cleaned.upper() in _BLANKS:
         return None
+    cleaned = _AMOUNT_SUFFIX.sub("", cleaned).strip()
     negative = cleaned.startswith("(") and cleaned.endswith(")")
     if negative:
         cleaned = cleaned[1:-1].strip()
+    elif cleaned.endswith("-") and len(cleaned) > 1:
+        negative, cleaned = True, cleaned[:-1].strip()
     match = _AMOUNT.match(cleaned)
     if not match:
         _warn(warnings, f"could not read amount '{text.strip()}'")
@@ -58,8 +62,9 @@ def parse_date(text: str, warnings: Warnings = None) -> date | None:
     cleaned = text.strip()
     if not cleaned:
         return None
-    if cleaned.isdigit() and len(cleaned) == 5 and 40000 <= int(cleaned) <= 60000:
-        return _EXCEL_EPOCH + timedelta(days=int(cleaned))
+    serial = re.fullmatch(r"(\d{5})(?:\.0+)?", cleaned)  # Excel writes 45385 or 45385.0
+    if serial and 40000 <= int(serial.group(1)) <= 60000:
+        return _EXCEL_EPOCH + timedelta(days=int(serial.group(1)))
     for fmt in _DATE_FORMATS:
         try:
             return datetime.strptime(cleaned, fmt).date()
@@ -116,7 +121,8 @@ _VENDOR_NOISE = {"PVT", "PRIVATE", "LTD", "LIMITED", "LLP", "CO", "COMPANY", "IN
 
 def vendor_key(name: str) -> str:
     """'M/s. Kumar Packaging Pvt. Ltd.' and 'KUMAR PACKAGING PRIVATE LIMITED' both give 'KUMAR PACKAGING'."""
-    upper = re.sub(r"^M\s*/\s*S\.?\s+", "", name.upper())
+    upper = re.sub(r"^M\s*/\s*S(?:\.\s*|\s+)", "", name.upper())  # 'M/s.Kumar' too, but not 'M/Sharma'
+    upper = re.sub(r"\(\s*P\s*\)", " PVT ", upper)  # '(P) Ltd' is Private Limited
     words = re.sub(r"[^A-Z0-9]", " ", upper.replace("&", " AND ")).split()
     return " ".join(word for word in words if word not in _VENDOR_NOISE)
 
@@ -127,8 +133,18 @@ _GSTIN = re.compile(r"^(0[1-9]|[1-2][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[
 _GSTIN_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+_NO_GSTIN = {"-", "NA", "N/A", "URD", "UNREGISTERED"}  # what exports write for an unregistered vendor
+_NO_REFERENCE = {"-", "NA", "N/A", "NIL"}
+
+
 def clean_gstin(text: str | None) -> str:
-    return re.sub(r"\s+", "", text or "").upper()
+    gstin = re.sub(r"\s+", "", text or "").upper()
+    return "" if gstin in _NO_GSTIN else gstin
+
+
+def clean_reference(text: str) -> str:
+    """A PO or bill reference, with placeholders like '-' and 'N/A' turned into blank."""
+    return "" if text.strip().upper() in _NO_REFERENCE else text
 
 
 def gstin_check_char(first14: str) -> str:
@@ -275,7 +291,7 @@ def to_invoices(table: Table, warnings: list[str]) -> list[Invoice]:
             taxable = _round2(qty * rate)
         elif taxable is None:
             row.warn("taxable_value", "value is missing")
-        po_ref = row.get("po_ref")
+        po_ref = clean_reference(row.get("po_ref"))
         vendor = row.get("vendor", required=True)
         invoices.append(Invoice(
             invoice_no=row.get("invoice_no"), invoice_key=doc_key(row.get("invoice_no")),
@@ -317,7 +333,7 @@ def to_payments(table: Table, warnings: list[str]) -> list[Payment]:
     payments = []
     for row in _rows(table, warnings):
         payee = row.get("payee", required=True)
-        invoice_ref = row.get("invoice_ref")
+        invoice_ref = clean_reference(row.get("invoice_ref"))
         paid = row.get("amount_paid", parse_amount, required=True) or 0.0
         tds = row.get("tds", parse_amount) or 0.0
         payments.append(Payment(

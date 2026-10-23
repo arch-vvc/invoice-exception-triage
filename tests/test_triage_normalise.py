@@ -4,6 +4,7 @@ from datetime import date
 import pytest
 from triage.loader import InputError, load_table
 from triage.normalise import (
+    clean_gstin,
     doc_key,
     format_inr,
     gstin_problem,
@@ -48,6 +49,12 @@ def csv_bytes(*lines: str) -> bytes:
     ("45,000.00 Dr", 45000.0),
     ("45,000.00 Cr", 45000.0),
     ("(1,000.00)", -1000.0),
+    ("₹1,18,000/-", 118000.0),
+    ("Rs.45,000/-", 45000.0),
+    ("Rs.1180/-", 1180.0),
+    ("1180/-", 1180.0),
+    ("1,000.00-", -1000.0),
+    ("(1,000) Dr", -1000.0),
     ("12.345", 12.35),
     ("", None),
     ("   ", None),
@@ -78,6 +85,11 @@ def test_parse_date_formats_are_day_first(text):
 
 def test_parse_date_excel_serial():
     assert parse_date("45385") == date(2024, 4, 3)
+
+
+@pytest.mark.parametrize("text", ["45385.0", "45385.00", "45385"])
+def test_parse_date_excel_serial_written_as_float(text):
+    assert parse_date(text) == date(2024, 4, 3)
 
 
 def test_parse_date_blank_and_garbage():
@@ -131,6 +143,18 @@ def test_vendor_key_ignores_ms_prefix_and_company_suffixes():
     assert vendor_key("M / S Rao & Sons Co.") == "RAO AND SONS"
 
 
+@pytest.mark.parametrize("name", [
+    "M/s.Kumar Packaging Pvt. Ltd.", "M/S Kumar Packaging (P) Ltd", "Kumar Packaging (P) Ltd.",
+    "KUMAR PACKAGING PVT LTD",
+])
+def test_vendor_key_handles_ms_without_space_and_p_ltd(name):
+    assert vendor_key(name) == "KUMAR PACKAGING"
+
+
+def test_vendor_key_does_not_eat_a_name_that_merely_starts_with_m_slash_s():
+    assert vendor_key("M/Sharma Traders") == "M SHARMA TRADERS"
+
+
 def test_vendor_key_keeps_genuinely_different_names_apart():
     assert vendor_key("Shree Ganesh Steels") != vendor_key("Sri Ganesh Steel")
 
@@ -165,6 +189,12 @@ def test_gstin_bad_format():
     assert gstin_problem("27ABCDE1234F1Z") == "format"
     assert gstin_problem("99ABCDE1234F1Z0") == "format"
     assert gstin_problem("27ABCDE12345F1Z") == "format"
+
+
+@pytest.mark.parametrize("text", ["-", "NA", "N/A", "n/a", "URD", "Unregistered", "  ", ""])
+def test_gstin_placeholders_count_as_missing(text):
+    assert clean_gstin(text) == ""
+    assert gstin_problem(text) == "missing"
 
 
 def test_gstin_missing():
@@ -247,6 +277,58 @@ def test_loader_header_line_must_be_within_first_ten_lines():
         load_table(data, "purchase_orders", "purchase_orders.csv")
 
 
+def test_loader_counts_only_non_blank_lines_towards_the_header_window():
+    row = "03/04/2024,INV-1,Acme,27ABCDE1234F1Z0,PO-1,Bolts,10,100,1000,18,180,1180"
+    data = b"\n" * 11 + csv_bytes(INVOICE_HEADER, row)
+    assert [line for line, _ in load_table(data, "invoices", "invoices.csv").rows] == [13]
+
+
+def test_loader_header_beyond_the_window_is_an_input_error_not_a_crash():
+    junk = [f"note {i}" for i in range(11)]
+    data = b"\n" * 3 + csv_bytes(*junk, INVOICE_HEADER, "03/04/2024,INV-1,Acme,,,,1,1,1,0,,1")
+    with pytest.raises(InputError) as caught:
+        load_table(data, "invoices", "invoices.csv")
+    assert_friendly(caught.value, "invoices.csv")
+
+
+def test_loader_missing_column_shows_the_header_row_not_the_preamble():
+    data = csv_bytes(MARKER, "Sharma Auto", INVOICE_HEADER.replace("Order No,", ""), "03/04/2024,INV-1,Acme")
+    with pytest.raises(InputError) as caught:
+        load_table(data, "invoices", "invoices.csv")
+    message = str(caught.value)
+    assert "missing a column for PO reference" in message
+    assert "found: Date, Bill Number, Party Name" in message
+    assert "SYNTHETIC" not in message and "Sharma" not in message
+
+
+def test_loader_unrelated_file_shows_its_widest_row_not_the_first_line():
+    data = csv_bytes("Report for April", "Name,Age,City", "Asha,30,Pune")
+    with pytest.raises(InputError) as caught:
+        load_table(data, "invoices", "invoices.csv")
+    assert "found: Name, Age, City" in str(caught.value)
+
+
+def test_loader_footer_total_rows_at_the_end_are_silent():
+    data = csv_bytes(INVOICE_HEADER, "03/04/2024,INV-1,Acme,,,,1,1,1,0,,1", "Total,,,,,,,,1,,,1",
+                     ",,Grand Total,,,,,,1,,,1")
+    assert load_table(data, "invoices", "invoices.csv").warnings == []
+
+
+def test_loader_warns_when_a_total_row_is_followed_by_more_data():
+    data = csv_bytes(INVOICE_HEADER, "03/04/2024,INV-1,Acme,,,,1,1,1,0,,1", "Sub Total,,,,,,,,1,,,1",
+                     "03/04/2024,INV-2,Acme,,,,1,1,1,0,,1")
+    table = load_table(data, "invoices", "invoices.csv")
+    assert [line for line, _ in table.rows] == [2, 4]
+    assert len(table.warnings) == 1 and "row 3" in table.warnings[0] and "total" in table.warnings[0].lower()
+
+
+def test_loader_warns_about_cells_split_over_several_lines():
+    data = csv_bytes(INVOICE_HEADER, '03/04/2024,INV-1,"Acme\nTraders",,,,1,1,1,0,,1')
+    table = load_table(data, "invoices", "invoices.csv")
+    assert len(table.rows) == 1
+    assert len(table.warnings) == 1 and "several lines" in table.warnings[0]
+
+
 # ---- loader: friendly errors ----
 
 def assert_friendly(error: InputError, filename: str):
@@ -282,7 +364,7 @@ def test_missing_column_lists_aliases_and_what_was_found():
     message = str(caught.value)
     assert "payments.csv is missing a column for invoice reference" in message
     assert "Against Bill" in message and "Bill Ref" in message
-    assert "Found: Txn Date, Payment Voucher, Paid To, Amount Paid" in message
+    assert "found: Txn Date, Payment Voucher, Paid To, Amount Paid" in message
     assert_friendly(caught.value, "payments.csv")
 
 
@@ -409,3 +491,13 @@ def test_invoice_sample_header_line_maps_every_field():
         "invoice_no", "vendor", "vendor_gstin", "invoice_date", "po_ref", "item", "qty", "rate",
         "taxable_value", "gst_rate", "gst_amount", "total",
     }
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "nil", "NIL"])
+def test_placeholder_references_become_blank(placeholder):
+    inv_row = f"03/04/2024,INV-1,Acme,27ABCDE1234F1Z0,{placeholder},Bolts,10,100,1000,18,180,1180"
+    invoices = to_invoices(load_table(csv_bytes(INVOICE_HEADER, inv_row), "invoices", "invoices.csv"), [])
+    assert (invoices[0].po_ref, invoices[0].po_key) == ("", "")
+    pay_row = f"03/04/2024,PV-1,Acme,{placeholder},1000,0,NEFT,UTR1"
+    payments = to_payments(load_table(csv_bytes(PAYMENT_HEADER, pay_row), "payments", "payments.csv"), [])
+    assert (payments[0].invoice_ref, payments[0].invoice_key) == ("", "")

@@ -38,7 +38,7 @@ def pay(payment_id, ref, paid, tds=0, payee="Acme Traders"):
     return f'{payment_id},"{payee}",{ref},{paid},{tds}'
 
 
-def run(invoices, pos=(), payments=(), tol=None):
+def run(invoices, pos=(), payments=(), tol=None, expect_warnings=False):
     """Load the three CSVs from lines and run the engine. Empty lists skip the file."""
     warnings: list[str] = []
 
@@ -56,7 +56,7 @@ def run(invoices, pos=(), payments=(), tol=None):
         to_payments(t_pay, warnings) if t_pay else [],
         tol,
     )
-    assert warnings == []
+    assert expect_warnings or warnings == []
     return result
 
 
@@ -531,3 +531,38 @@ def test_guard_allows_localhost_sockets():
     client.connect(server.getsockname())
     client.close()
     server.close()
+
+
+# ---- fix round 1: messy-export realism ----
+
+def test_gst_amount_check_is_skipped_when_taxable_value_is_blank():
+    line = inv("INV-1", rate="", taxable="", gst_amount=180, total=1180)
+    result = run([line], [po()], expect_warnings=True)
+    assert result.exceptions == []
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "URD", "Unregistered"])
+def test_gstin_placeholder_at_zero_gst_is_not_a_finding(placeholder):
+    assert run([inv("INV-1", gstin=placeholder, gst=0)], [po(gst=0)]).exceptions == []
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "URD", "Unregistered"])
+def test_gstin_placeholder_above_zero_gst_is_reported_as_missing(placeholder):
+    assert gst_exc(inv("INV-1", gstin=placeholder)).facts["reason"] == "missing"
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "nil"])
+def test_po_ref_placeholder_uses_the_single_po_fallback(placeholder):
+    assert run([inv("INV-1", po=placeholder)], [po()]).exceptions == []
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "nil"])
+def test_po_ref_placeholder_with_no_fallback_is_a_missing_po(placeholder):
+    exc = only(run([inv("INV-1", po=placeholder)], [po(), po("PO-2")]))
+    assert exc.type == "missing_po" and exc.facts["po_ref_given"] == ""
+
+
+@pytest.mark.parametrize("placeholder", ["-", "NA", "N/A", "nil"])
+def test_invoice_ref_placeholder_matches_the_payment_by_vendor_and_amount(placeholder):
+    result = run([inv("INV-1")], [po()], [pay("P1", placeholder, 1180)])
+    assert result.exceptions == [] and result.unmatched_payment_ids == []

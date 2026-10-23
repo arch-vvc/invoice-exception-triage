@@ -153,21 +153,25 @@ def _required_hits(field_map: dict[str, str], fields: tuple[Field, ...]) -> int:
 
 
 def _find_table(text: str, kind: str, filename: str):
-    """Return (grid, index of the header row, field_map) or raise InputError naming the missing column."""
+    """Return (grid, index of the header row, field_map) or raise InputError naming the missing column.
+
+    Only non-blank lines count towards the MAX_HEADER_LINE window, because real exports have blank preamble lines.
+    """
     fields = SCHEMAS[kind]
-    best = None  # (hits, grid, index, field_map) of the closest header seen, for the error message
+    best = None  # ((columns mapped, filled cells), grid, index, field_map): the likeliest header, for the error
     for delimiter in _delimiters(text):
         grid = _read_grid(text, delimiter)
-        for index, (line, cells) in enumerate(grid):
-            if line > MAX_HEADER_LINE:
-                break
+        for index, (_, cells) in enumerate(grid[:MAX_HEADER_LINE]):
             field_map = _map_columns(cells, fields)
-            hits = _required_hits(field_map, fields)
-            if hits >= MIN_HEADER_MATCHES:
+            if _required_hits(field_map, fields) >= MIN_HEADER_MATCHES:
                 _require_columns(field_map, cells, fields, filename)
                 return grid, index, field_map
-            if best is None or hits > best[0]:
-                best = (hits, grid, index, field_map)
+            score = (len(field_map), sum(1 for c in cells if c.strip()))
+            if best is None or score > best[0]:
+                best = (score, grid, index, field_map)
+    if best is None:
+        raise InputError(f"{filename} has no header row we recognise in its first {MAX_HEADER_LINE} lines. "
+                         "Check it is the right export.")
     _, grid, index, field_map = best
     _require_columns(field_map, grid[index][1], fields, filename)
     raise InputError(f"{filename} has no header row we recognise in its first {MAX_HEADER_LINE} lines.")
@@ -178,27 +182,42 @@ def _require_columns(field_map: dict[str, str], cells: list[str], fields: tuple[
         if fld.required and fld.name not in field_map:
             found = ", ".join(c.strip() for c in cells if c.strip())
             raise InputError(
-                f"{filename} is missing a column for {fld.label}. We looked for: {', '.join(fld.aliases)}. "
-                f"Found: {found}. Rename a header or add the column."
+                f"{filename} is missing a column for {fld.label}. "
+                f"We looked for: {', '.join(fld.aliases)}; found: {found}. Rename a header or add the column."
             )
 
 
 _TOTAL_LABEL = re.compile(r"^\s*(grand\s+)?total\b", re.IGNORECASE)
 
 
+def _is_total_row(raw: dict[str, str], key: str) -> bool:
+    """A footer: its key cell says 'Total', or the key is blank and some other cell says total."""
+    return bool(_TOTAL_LABEL.match(key)) if key else any("total" in v.lower() for v in raw.values())
+
+
 def _data_rows(grid, header: list[str], field_map: dict[str, str], kind: str, filename: str):
     """Turn raw cell lists into dicts, dropping footers and keyless rows (the latter with a warning)."""
     key_header = field_map[KEY_FIELDS[kind]]
     key_label = next(f.label for f in SCHEMAS[kind] if f.name == KEY_FIELDS[kind])
-    rows: list[tuple[int, dict[str, str]]] = []
-    warnings: list[str] = []
+    parsed = []
     for line, cells in grid:
         padded = [c.strip() for c in cells] + [""] * (len(header) - len(cells))
         raw = {name: value for name, value in zip(header, padded, strict=False) if name}
-        key = raw.get(key_header, "")
-        if not key or _TOTAL_LABEL.match(key):
-            if not key and not any("total" in v.lower() for v in raw.values()):
-                warnings.append(f"{filename} row {line} has no {key_label}, so it was skipped.")
-            continue
-        rows.append((line, raw))
+        parsed.append((line, raw, raw.get(key_header, ""), any("\n" in c for c in cells)))
+    # Total rows after the last real row are the footer. A total row with data after it is worth a warning.
+    last_data = max((i for i, (_, raw, key, _) in enumerate(parsed) if not _is_total_row(raw, key)), default=-1)
+    rows: list[tuple[int, dict[str, str]]] = []
+    warnings: list[str] = []
+    for index, (line, raw, key, multiline) in enumerate(parsed):
+        if multiline:
+            warnings.append(f"{filename} row {line} has a cell split over several lines, so row numbers after "
+                            "it may be off.")
+        if _is_total_row(raw, key):
+            if index < last_data:
+                warnings.append(f"{filename} row {line} looks like a total row in the middle of the data, "
+                                "so it was skipped.")
+        elif not key:
+            warnings.append(f"{filename} row {line} has no {key_label}, so it was skipped.")
+        else:
+            rows.append((line, raw))
     return rows, warnings

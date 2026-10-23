@@ -260,7 +260,8 @@ def _gst_finding(inv: Invoice, po: PurchaseOrder | None, tol: Tolerance) -> tupl
         return "slab", tax
     if po is not None and po.gst_rate is not None and inv.gst_rate is not None and po.gst_rate != inv.gst_rate:
         return "rate_vs_po", abs(taxable * (g - _g(po.gst_rate)))
-    if inv.gst_amount is not None and not tol.amount_ok(inv.gst_amount - computed, computed):
+    if inv.taxable_value is not None and inv.gst_amount is not None \
+            and not tol.amount_ok(inv.gst_amount - computed, computed):
         return "amount", abs(inv.gst_amount - computed)
     return None
 
