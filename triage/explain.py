@@ -34,6 +34,9 @@ MAX_SENTENCE_CHARS = 300
 RUPEE_AMOUNT = re.compile(r"(?:₹|\bINR|\bRs\.?)\s*(\d[\d,]*(?:\.\d+)?)", re.IGNORECASE)
 RUPEES_WORD = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*rupees?\b", re.IGNORECASE)
 RATE_FACTS = ("invoice_rate", "po_rate")
+# US spellings a model tends to produce. Everything a user reads is in British English.
+AMERICAN_SPELLING = re.compile(
+    r"\b\w*(?:authoriz|organiz|recogniz|categoriz|prioritiz|analyz|summariz|minimiz|finaliz)\w*", re.IGNORECASE)
 
 
 def warn(message: str) -> None:
@@ -100,9 +103,11 @@ def _vendor_name_mismatch(f: dict, risk: str) -> str:
 
 def _amount_mismatch(f: dict, risk: str) -> str:
     direction = "above" if float(f["diff"]) > 0 else "below"
+    gst = float(f.get("gst_rate") or 0)
+    with_gst = f", or {risk} with {_num(gst)}% GST" if gst > 0 else ""  # the amount at risk includes the tax
     return (f"Invoice {f['invoice_no']} from {f['vendor']} charges {f['invoice_rate_display']} a unit against "
             f"{f['po_rate_display']} on {f['po_no']}, so the {_num(f['qty'])} units are billed "
-            f"{_abs_money(f, 'diff')} {direction} the agreed price.")
+            f"{_abs_money(f, 'diff')} {direction} the agreed price{with_gst}.")
 
 
 def _quantity_mismatch(f: dict, risk: str) -> str:
@@ -140,6 +145,9 @@ def _partial_payment(f: dict, risk: str) -> str:
 
 def _overpayment(f: dict, risk: str) -> str:
     tds = f" plus {f['tds_display']} TDS" if float(f["tds"]) > 0 else ""
+    if f.get("paid_twice"):
+        return (f"Invoice {f['invoice_no']} from {f['vendor']} was paid twice: {f['paid_display']}{tds} went out "
+                f"against a {f['total_display']} invoice, so {f['excess_display']} is due back from the vendor.")
     return (f"Invoice {f['invoice_no']} from {f['vendor']} is for {f['total_display']} but "
             f"{f['paid_display']} was paid{tds}, so the vendor holds {f['excess_display']} too much.")
 
@@ -191,6 +199,11 @@ def meaning(exc: TriageException) -> str:
         return "The invoice quotes no PO and none could be matched."
     if exc.type == "gst_error":
         return GST_MEANINGS.get(exc.facts.get("reason"), GST_MEANINGS["amount"])
+    if exc.type == "amount_mismatch" and float(exc.facts.get("gst_rate") or 0) > 0:
+        return (MEANINGS[exc.type] + f" The amount at risk is that difference plus {_num(exc.facts['gst_rate'])}% "
+                "GST, so say that the amount at risk includes GST.")
+    if exc.type == "overpayment" and exc.facts.get("paid_twice"):
+        return MEANINGS[exc.type] + " It was paid exactly twice, so say the invoice was paid twice."
     return MEANINGS[exc.type]
 
 
@@ -217,8 +230,19 @@ def _allowed_amounts(facts: dict, amount_at_risk: float | None) -> set[float]:
     return allowed
 
 
+def _required_words(facts: dict) -> list[str]:
+    """Words a sentence must contain so it matches the amount at risk: GST when the risk includes it, and twice."""
+    words = []
+    if "invoice_rate" in facts and float(facts.get("gst_rate") or 0) > 0:
+        words.append("gst")
+    if facts.get("paid_twice"):
+        words.append("twice")
+    return words
+
+
 def is_valid_sentence(text: str, facts: dict, amount_at_risk: float | None = None) -> bool:
-    """One plain line, at most 300 chars, ends with a full stop, names the invoice and invents no rupee amount."""
+    """One plain line in British English, at most 300 chars, ends with a full stop, names the invoice, invents no
+    rupee amount, and says GST or paid twice when the facts need it."""
     if not isinstance(text, str) or not text or "\n" in text or "\r" in text:
         return False
     if len(text) > MAX_SENTENCE_CHARS or not text.endswith("."):
@@ -228,7 +252,9 @@ def is_valid_sentence(text: str, facts: dict, amount_at_risk: float | None = Non
     if not number.search(text):
         return False
     body = number.sub(" ", text)
-    if any(mark in body for mark in "*`#"):
+    if any(mark in body for mark in "*`#") or AMERICAN_SPELLING.search(text):
+        return False
+    if not all(word in text.lower() for word in _required_words(facts)):
         return False
     allowed = _allowed_amounts(facts, amount_at_risk)
     mentioned = RUPEE_AMOUNT.findall(body) + RUPEES_WORD.findall(body)
@@ -249,7 +275,7 @@ def build_prompt(exc: TriageException) -> str:
         "Write one sentence, under 40 words, in plain English for a finance user, starting with "
         f'"Invoice {invoice_no}". State the finding and its money impact.\n'
         "Rules: use the ₹ amounts exactly as given in the facts. Do not introduce any new numbers. "
-        "No markdown. Reply with the sentence only.\n"
+        "Use British spelling (authorisation, not authorization). No markdown. Reply with the sentence only.\n"
         f"Exception type: {exc.type}\n"
         f"Meaning: {meaning(exc)}\n"
         f"Amount at risk: {format_inr(exc.amount_at_risk)}\n"

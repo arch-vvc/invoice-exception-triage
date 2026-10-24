@@ -21,7 +21,7 @@ import argparse
 import csv
 import io
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -603,6 +603,14 @@ def reference_exceptions(invoices, pos, payment_rows) -> list[Found]:
             found.append(Found("partial_payment", i, risk, "medium" if risk >= 50000 else "low", po_no, refs))
         elif settled_sum > i.total + 1:
             found.append(Found("overpayment", i, settled_sum - i.total, "high", po_no, refs))
+
+    # A duplicate lists the PO and payments of the invoice it repeats, so the key shows what was already paid.
+    for n, f in enumerate(found):
+        if f.type == "duplicate_invoice":
+            original = duplicates[f.invoice.ref]
+            po = linked.get(original.ref)
+            refs = tuple(pid for pid, _ in paid.get(original.ref, []))
+            found[n] = replace(f, po_no=po.no if po else "", payment_refs=refs)
     return found
 
 

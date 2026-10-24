@@ -185,6 +185,11 @@ def test_explanations_come_from_the_explainer(client):
         assert exc["explanation"] == f"Fake explanation for {exc['invoice_no']}."
 
 
+def primary_invoice_row(exc):
+    """The invoice the exception is about. A duplicate lists its original first, so skip that one."""
+    return next(r for r in exc["rows"]["invoices"] if r["label"] != "Original")
+
+
 def test_exception_rows_carry_the_raw_cells_under_the_customers_own_headers(client):
     _, result = client.get_json("/api/sample")
     invoice_header = result["files"]["invoices"]["header"]
@@ -192,7 +197,7 @@ def test_exception_rows_carry_the_raw_cells_under_the_customers_own_headers(clie
     assert result["files"]["invoices"]["filename"] == "invoices.csv"
     assert result["files"]["payments"]["header"][:2] == ["Txn Date", "Payment Voucher"]
     for exc in result["exceptions"]:
-        primary = exc["rows"]["invoices"][0]
+        primary = primary_invoice_row(exc)
         assert isinstance(primary["row"], int)
         assert list(primary["cells"]) == [h for h in invoice_header if h in primary["cells"]]
         assert primary["cells"]["Bill Number"] == exc["invoice_no"]
@@ -209,7 +214,7 @@ def test_exception_rows_point_at_the_physical_line_in_the_file(client):
 def test_rows_match_the_answer_key_invoice_rows(client):
     _, result = client.get_json("/api/sample")
     key = {(r["exception_type"], r["invoice_no"]): int(r["invoice_row"]) for r in answer_key_rows()}
-    got = {(e["type"], e["invoice_no"]): e["rows"]["invoices"][0]["row"] for e in result["exceptions"]}
+    got = {(e["type"], e["invoice_no"]): primary_invoice_row(e)["row"] for e in result["exceptions"]}
     assert got == key
 
 

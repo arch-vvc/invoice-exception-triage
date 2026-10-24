@@ -1,19 +1,29 @@
 {
   "entries": {
-    "0ee4c52aa3e48028": {
+    "0774f73679a51d20": {
       "backend": "claude-cli",
-      "text": "Invoice SGS/0455 is overpaid: payments of ₹1,74,640, counting TDS, exceed the ₹87,320 invoice total, leaving ₹87,320 at risk.",
-      "type": "overpayment"
+      "text": "Invoice SE-24-25-107 duplicates earlier invoice SE/24-25/0107 from Sai Engineering Works with the same total, so paying both would pay the vendor twice and put ₹90,624 at risk.",
+      "type": "duplicate_invoice"
     },
     "13d153536146582f": {
       "backend": "claude-cli",
       "text": "Invoice BR/24/2330 from Bharat Rubber Industries has 1,600 units invoiced against PO-00116's 1,500 ordered, a 100-unit excess that puts ₹2,832 at risk.",
       "type": "quantity_mismatch"
     },
+    "18afe98995547826": {
+      "backend": "offline",
+      "text": "Invoice SGS/0455 from Shree Ganesh Steels was paid twice: ₹1,74,640 went out against a ₹87,320 invoice, so ₹87,320 is due back from the vendor.",
+      "type": "overpayment"
+    },
     "24c2171bafa96c97": {
       "backend": "claude-cli",
       "text": "Invoice OSE/2024/338 from Om Sai Electricals bills GST at 18% against the 12% on PO-00124, a rate mismatch that puts ₹9,600 at risk.",
       "type": "gst_error"
+    },
+    "2572aa08b36b7aef": {
+      "backend": "offline",
+      "text": "Invoice GAC/118 from Gujarat Alloy Castings Ltd charges ₹668 a unit against ₹640 on PO-00127, so the 500 units are billed ₹14,000 above the agreed price, or ₹16,520 with 18% GST.",
+      "type": "amount_mismatch"
     },
     "33e1e9af0e14aced": {
       "backend": "claude-cli",
@@ -26,14 +36,14 @@
       "type": "partial_payment"
     },
     "60000c3428f65d5e": {
-      "backend": "claude-cli",
-      "text": "Invoice AS/0071 from Apex Safety Products has no PO reference and no matching PO could be found, leaving ₹1,29,800 at risk of payment without authorization.",
+      "backend": "offline",
+      "text": "Invoice AS/0071 from Apex Safety Products quotes no PO and none matches, so there is no approved order behind this ₹1,29,800 bill.",
       "type": "missing_po"
     },
-    "6c66cba9e11bae00": {
+    "70c77dd093631f03": {
       "backend": "claude-cli",
-      "text": "Invoice GAC/118 bills ₹668 per unit against the agreed PO-00127 rate of ₹640, overcharging ₹14,000 on this invoice.",
-      "type": "amount_mismatch"
+      "text": "Invoice INV/42 duplicates earlier invoice INV-0042 from Sundaram Brake Linings Pvt Ltd, so paying both would put ₹1,45,140 at risk of being paid twice.",
+      "type": "duplicate_invoice"
     },
     "7abada1ed6ef87cb": {
       "backend": "claude-cli",
@@ -45,9 +55,9 @@
       "text": "Invoice SGS/0412 names the vendor Sri Ganesh Steel, but linked PO-00104 says Shree Ganesh Steels; it is probably the same supplier, and ₹0 is at risk for now.",
       "type": "vendor_name_mismatch"
     },
-    "b476ac57f76275d3": {
-      "backend": "claude-cli",
-      "text": "Invoice MTW/1043 from Mahalakshmi Tooling Works bills a unit rate of ₹3,300 against the PO-00114 rate of ₹3,150, overcharging ₹3,000 with ₹3,540 at risk.",
+    "8ef9dd1b9a1fd92b": {
+      "backend": "offline",
+      "text": "Invoice MTW/1043 from Mahalakshmi Tooling Works charges ₹3,300 a unit against ₹3,150 on PO-00114, so the 20 units are billed ₹3,000 above the agreed price, or ₹3,540 with 18% GST.",
       "type": "amount_mismatch"
     },
     "c1d9fc8a80c0fc27": {
@@ -69,16 +79,6 @@
       "backend": "claude-cli",
       "text": "Invoice DBS-0731 from Deccan Bearings & Spares has been billed 720 units against PO-00118's 600 ordered, an excess of 120 units putting ₹26,196 at risk.",
       "type": "quantity_mismatch"
-    },
-    "dd62ddd4779ab777": {
-      "backend": "claude-cli",
-      "text": "Invoice SE-24-25-107 duplicates earlier invoice SE/24-25/0107 from Sai Engineering Works with the same total, so paying both would pay the vendor twice and put ₹90,624 at risk.",
-      "type": "duplicate_invoice"
-    },
-    "e6286afc999527cb": {
-      "backend": "claude-cli",
-      "text": "Invoice INV/42 duplicates earlier invoice INV-0042 from Sundaram Brake Linings Pvt Ltd, so paying both would put ₹1,45,140 at risk of being paid twice.",
-      "type": "duplicate_invoice"
     }
   },
   "version": 1

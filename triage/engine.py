@@ -59,7 +59,10 @@ class TriageException:
     source_rows: dict[str, list[int]]
     amount_at_risk: float
     suggested_action: str
-    facts: dict[str, str | int | float]
+    facts: dict[str, str | int | float | bool]
+    # The cells that prove the finding: {"kind": "invoices", "row": 17, "field": "total"}. The server turns the
+    # field names into the user's own column headers.
+    flagged_cells: list[dict[str, str | int]] = field(default_factory=list)
 
 
 @dataclass
@@ -72,6 +75,7 @@ class TriageResult:
     unmatched_payment_ids: list[str] = field(default_factory=list)
     invoices_checked: int = 0
     amount_at_risk: float = 0.0
+    field_headers: dict[str, dict[str, str]] = field(default_factory=dict)  # kind -> {field name: user's header}
 
 
 # ---- building exceptions ----
@@ -93,8 +97,14 @@ def _tier(risk: float, cutoff: float, above: str, below: str) -> str:
     return above if risk >= cutoff else below
 
 
+def _cells(kind: str, rows: list[int], *fields: str) -> list[dict[str, str | int]]:
+    """Flag these fields on each of these source rows."""
+    return [{"kind": kind, "row": row, "field": name} for row in rows for name in fields]
+
+
 def _make(kind: str, severity: str, invoice: Invoice, risk: float, extra: dict, po: PurchaseOrder | None = None,
-          more_invoices: tuple[Invoice, ...] | list[Invoice] = (), payments: list[Payment] | None = None):
+          more_invoices: tuple[Invoice, ...] | list[Invoice] = (), payments: list[Payment] | None = None,
+          flag: list[dict[str, str | int]] | None = None):
     """Assemble a TriageException. The primary invoice always comes first in the id and row lists."""
     invoices = [invoice, *more_invoices]
     payments = payments or []
@@ -110,6 +120,7 @@ def _make(kind: str, severity: str, invoice: Invoice, risk: float, extra: dict, 
             "payments": [p.source_row for p in payments],
         },
         amount_at_risk=round(risk, 2), suggested_action=ACTIONS[kind], facts=facts | extra,
+        flagged_cells=flag or [],
     )
 
 
@@ -230,22 +241,28 @@ def _quantity_overruns(po_for: dict[Invoice, PurchaseOrder], tol: Tolerance) -> 
 
 # ---- the checks (C5). Each returns an exception or None. ----
 
-def _duplicate(dup: Invoice, original: Invoice) -> TriageException:
+def _duplicate(dup: Invoice, original: Invoice, po: PurchaseOrder | None,
+               payments: list[Payment]) -> TriageException:
+    """The duplicate carries the original's PO and payments, so the reader can see what was already paid."""
     total = dup.total or 0.0
     extra = {"original_invoice_no": original.invoice_no} | _money(total=total)
-    return _make("duplicate_invoice", "high", dup, total, extra, more_invoices=[original])
+    flag = _cells("invoices", [dup.source_row, original.source_row], "total")
+    return _make("duplicate_invoice", "high", dup, total, extra, po=po, more_invoices=[original],
+                 payments=payments, flag=flag)
 
 
 def _missing_po(inv: Invoice) -> TriageException:
     risk = inv.total or 0.0
-    return _make("missing_po", _tier(risk, MISSING_PO_HIGH, "high", "medium"), inv, risk, {"po_ref_given": inv.po_ref})
+    return _make("missing_po", _tier(risk, MISSING_PO_HIGH, "high", "medium"), inv, risk, {"po_ref_given": inv.po_ref},
+                 flag=_cells("invoices", [inv.source_row], "po_ref"))
 
 
 def _vendor_mismatch(inv: Invoice, po: PurchaseOrder) -> TriageException | None:
     if inv.vendor_key == po.vendor_key:
         return None
     extra = {"invoice_vendor": inv.vendor, "po_vendor": po.vendor}
-    return _make("vendor_name_mismatch", "low", inv, 0.0, extra, po=po)
+    flag = _cells("invoices", [inv.source_row], "vendor") + _cells("purchase_orders", [po.source_row], "vendor")
+    return _make("vendor_name_mismatch", "low", inv, 0.0, extra, po=po, flag=flag)
 
 
 def _amount_mismatch(inv: Invoice, po: PurchaseOrder, tol: Tolerance) -> TriageException | None:
@@ -258,7 +275,11 @@ def _amount_mismatch(inv: Invoice, po: PurchaseOrder, tol: Tolerance) -> TriageE
     risk = abs(diff) * (1 + _g(inv.gst_rate))
     rate = inv.rate if inv.rate is not None else (inv.taxable_value / inv.qty if inv.qty else 0.0)
     extra = _money(invoice_rate=rate, po_rate=po.rate) | {"qty": inv.qty} | _money(diff=diff)
-    return _make("amount_mismatch", _tier(risk, AMOUNT_OR_QTY_HIGH, "high", "medium"), inv, risk, extra, po=po)
+    extra["gst_rate"] = inv.gst_rate or 0.0  # the risk is the price difference plus this much GST
+    proof = "rate" if inv.rate is not None else "taxable_value"
+    flag = _cells("invoices", [inv.source_row], proof) + _cells("purchase_orders", [po.source_row], "rate")
+    return _make("amount_mismatch", _tier(risk, AMOUNT_OR_QTY_HIGH, "high", "medium"), inv, risk, extra, po=po,
+                 flag=flag)
 
 
 def _quantity_mismatch(inv: Invoice, po: PurchaseOrder, overrun: Overrun | None) -> TriageException | None:
@@ -266,8 +287,10 @@ def _quantity_mismatch(inv: Invoice, po: PurchaseOrder, overrun: Overrun | None)
         return None
     risk = overrun.excess * po.rate * (1 + _g(po.gst_rate))
     extra = {"invoiced_qty": overrun.cumulative, "po_qty": po.qty, "excess_qty": overrun.excess}
+    rows = [inv.source_row, *(i.source_row for i in overrun.earlier)]
+    flag = _cells("invoices", rows, "qty") + _cells("purchase_orders", [po.source_row], "qty")
     return _make("quantity_mismatch", _tier(risk, AMOUNT_OR_QTY_HIGH, "high", "medium"), inv, risk, extra,
-                 po=po, more_invoices=overrun.earlier)
+                 po=po, more_invoices=overrun.earlier, flag=flag)
 
 
 def _gst_finding(inv: Invoice, po: PurchaseOrder | None, tol: Tolerance) -> tuple[str, float] | None:
@@ -302,7 +325,24 @@ def _gst_error(inv: Invoice, po: PurchaseOrder | None, tol: Tolerance) -> Triage
         "po_gst_rate": po.gst_rate if po and po.gst_rate is not None else "",
     }
     severity = "high" if reason in ("missing", "format", "checksum") else "medium"
-    return _make("gst_error", severity, inv, risk, extra, po=po)
+    return _make("gst_error", severity, inv, risk, extra, po=po, flag=_gst_flags(reason, inv, po))
+
+
+# Which fields prove each GST reason: (invoice fields, PO fields).
+GST_PROOF = {
+    "missing": (("vendor_gstin", "gst_rate"), ()),
+    "format": (("vendor_gstin",), ()),
+    "checksum": (("vendor_gstin",), ()),
+    "slab": (("gst_rate",), ()),
+    "rate_vs_po": (("gst_rate",), ("gst_rate",)),
+    "amount": (("gst_rate", "gst_amount"), ()),
+}
+
+
+def _gst_flags(reason: str, inv: Invoice, po: PurchaseOrder | None) -> list[dict[str, str | int]]:
+    invoice_fields, po_fields = GST_PROOF[reason]
+    flag = _cells("invoices", [inv.source_row], *invoice_fields)
+    return flag + (_cells("purchase_orders", [po.source_row], *po_fields) if po else [])
 
 
 def _payment_exception(inv: Invoice, po: PurchaseOrder | None, payments: list[Payment],
@@ -316,12 +356,23 @@ def _payment_exception(inv: Invoice, po: PurchaseOrder | None, payments: list[Pa
         outstanding = inv.total - settled
         extra = _money(total=inv.total, paid=paid, tds=tds, outstanding=outstanding)
         severity = _tier(outstanding, PARTIAL_PAYMENT_MEDIUM, "medium", "low")
-        return _make("partial_payment", severity, inv, outstanding, extra, po=po, payments=payments)
+        return _make("partial_payment", severity, inv, outstanding, extra, po=po, payments=payments,
+                     flag=_payment_flags(inv, payments))
     if settled > inv.total + tol.payment_abs:
         excess = settled - inv.total
         extra = _money(total=inv.total, paid=paid, tds=tds, excess=excess)
-        return _make("overpayment", "high", inv, excess, extra, po=po, payments=payments)
+        if abs(settled - 2 * inv.total) <= tol.payment_abs:
+            extra["paid_twice"] = True
+        return _make("overpayment", "high", inv, excess, extra, po=po, payments=payments,
+                     flag=_payment_flags(inv, payments))
     return None
+
+
+def _payment_flags(inv: Invoice, payments: list[Payment]) -> list[dict[str, str | int]]:
+    """The invoice total, and what was paid (plus the TDS on any payment that had some)."""
+    flag = _cells("invoices", [inv.source_row], "total") + _cells("payments", [p.source_row for p in payments],
+                                                                 "amount_paid")
+    return flag + _cells("payments", [p.source_row for p in payments if p.tds], "tds")
 
 
 def _invoice_exceptions(inv: Invoice, po: PurchaseOrder | None, overrun: Overrun | None,
@@ -362,7 +413,8 @@ def triage(invoices: list[Invoice], pos: list[PurchaseOrder], payments: list[Pay
     overruns = _quantity_overruns(po_for, tol)
     paid_by, unmatched = _link_payments(payments, live, tol)
 
-    found = [_duplicate(dup, original) for dup, original in duplicates.items()]
+    found = [_duplicate(dup, original, po_for.get(original), paid_by.get(original, []))
+             for dup, original in duplicates.items()]
     for inv in live:
         found += _invoice_exceptions(inv, po_for.get(inv), overruns.get(inv), paid_by.get(inv, []), tol)
     found.sort(key=lambda e: (-e.amount_at_risk, SEVERITY_RANK[e.severity], e.invoice_ids[0], e.type))
@@ -395,6 +447,7 @@ def triage_bytes(files: dict[str, tuple[str, bytes]], tol: Tolerance | None = No
     payments = to_payments(tables["payments"], warnings)
     result = triage(invoices, pos, payments, tol)
     result.warnings[:0] = warnings
+    result.field_headers = {kind: dict(table.field_map) for kind, table in tables.items()}
     return result
 
 
