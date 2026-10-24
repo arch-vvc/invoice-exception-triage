@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from triage.engine import SAMPLE_FILES, triage_bytes
 from triage.loader import InputError, load_table
 

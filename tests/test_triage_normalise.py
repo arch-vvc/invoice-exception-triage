@@ -2,6 +2,7 @@
 from datetime import date
 
 import pytest
+
 from triage.loader import InputError, load_table
 from triage.normalise import (
     clean_gstin,

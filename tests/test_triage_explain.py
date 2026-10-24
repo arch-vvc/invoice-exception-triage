@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from triage import explain
 from triage.engine import TriageException, triage_dir
 from triage.explain import (

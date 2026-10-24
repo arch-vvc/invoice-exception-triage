@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+
 from triage.engine import Tolerance, triage_dir
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "sample_data"

@@ -8,6 +8,7 @@ import socket
 import subprocess
 
 import pytest
+
 from triage.engine import Tolerance, TriageException, triage, triage_bytes, triage_dir
 from triage.loader import InputError, load_table
 from triage.normalise import to_invoices, to_payments, to_purchase_orders

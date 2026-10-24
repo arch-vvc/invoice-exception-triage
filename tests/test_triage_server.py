@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import pytest
+
 from triage import server as triage_server
 from triage.engine import SAMPLE_FILES
 from triage.server import make_server

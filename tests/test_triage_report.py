@@ -3,6 +3,7 @@ import csv
 import io
 
 import pytest
+
 from triage.engine import TriageException
 from triage.report import HEADER, to_csv
 
