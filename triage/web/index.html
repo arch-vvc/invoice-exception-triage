@@ -19,6 +19,7 @@
   --med-bg: #fff1d6;   --med-fg: #7f4300;   --med-dot: #e08a00;
   --low-bg: #e8edf7;   --low-fg: #3a4f78;   --low-dot: #6f86b3;
   --ok: #17703f;
+  --flag-bg: #ffd666;  --flag-fg: #3d2400;  --flag-edge: #d98200;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(20, 28, 45, .06), 0 1px 1px rgba(20, 28, 45, .04);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
@@ -192,11 +193,10 @@ table.mini { border-collapse: collapse; width: max-content; min-width: 100%; fon
 .mini .rn { position: sticky; left: 0; background: #fafbfc; font-weight: 650; border-right: 1px solid var(--border); }
 .mini td.blank { color: #8a93a2; }
 .mini th.amt, .mini td.amt { text-align: right; }
-.mini th.amt { box-shadow: inset 0 -2px 0 var(--border-strong); }
-.mini td.flag { background: var(--med-bg); color: var(--med-fg); font-weight: 700; box-shadow: inset 0 0 0 2px var(--med-dot); }
-.mini th.flag { background: var(--med-bg); color: var(--med-fg); }
+.mini td.flag { background: var(--flag-bg); color: var(--flag-fg); font-weight: 700; box-shadow: inset 0 0 0 2px var(--flag-edge); }
+.mini th.flag { background: var(--flag-bg); color: var(--flag-fg); box-shadow: inset 0 -3px 0 var(--flag-edge); }
 .rowtag { display: block; margin-top: 2px; font-size: 11px; font-weight: 650; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
-.key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--med-bg); box-shadow: inset 0 0 0 2px var(--med-dot); vertical-align: -2px; margin-right: 4px; }
+.key { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--flag-bg); box-shadow: inset 0 0 0 2px var(--flag-edge); vertical-align: -2px; margin-right: 4px; }
 .note { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
 .none-note { color: var(--muted); font-size: 13px; }
 p.none-note { font-size: 14px; }
@@ -574,7 +574,7 @@ function openDrawer(exc, opener) {
       el("p", exc.explanation ? "lead" : "none-note", exc.explanation || "No explanation is available for this one."),
       el("h3", null, "Suggested action"), el("p", "todo", exc.suggested_action),
       el("h3", null, "Your rows"),
-      el("p", "sub-h", "Straight from your files, with your own column names. Amount columns come first."),
+      el("p", "sub-h", "Straight from your files, with your own column names. Invoice number, date and total come first."),
       legend());
   for (const spec of KINDS) body.append(rowGroup(spec.kind, exc.rows[spec.kind] || [], (exc.notes || {})[spec.kind]));
   drawer.append(body);
@@ -584,6 +584,12 @@ function openDrawer(exc, opener) {
   drawer.setAttribute("aria-hidden", "false");
   // The drawer is visibility:hidden until it has the open class, so focus only after that.
   requestAnimationFrame(() => { drawer.classList.add("open"); close.focus(); });
+}
+
+/* The lead columns stay where they are; any flagged column that is not one of them comes next, so the proof is on screen. */
+function flaggedFirst(columns, flagged, leadCount) {
+  const rest = columns.slice(leadCount);
+  return [...columns.slice(0, leadCount), ...rest.filter((h) => flagged.has(h)), ...rest.filter((h) => !flagged.has(h))];
 }
 
 function legend() {
@@ -602,9 +608,10 @@ function rowGroup(kind, rows, note) {
   }
   const numbers = rows.map((r) => r.row);
   cap.append(el("span", "where", " · " + (numbers.length === 1 ? "row " : "rows ") + numbers.join(", ")));
-  const columns = (info.columns && info.columns.length) ? info.columns : (info.header.length ? info.header : Object.keys(rows[0].cells));
+  const base = (info.columns && info.columns.length) ? info.columns : (info.header.length ? info.header : Object.keys(rows[0].cells));
   const amounts = new Set(info.amount_columns || []);
   const flagged = new Set(rows.flatMap((r) => r.flagged || []));
+  const columns = flaggedFirst(base, flagged, info.lead_columns || 0);
   const table = el("table", "mini");
   const headRow = el("tr");
   const rowTh = el("th", "rn", "Row");

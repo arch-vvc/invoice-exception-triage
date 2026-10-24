@@ -72,13 +72,15 @@ def explain(server: TriageServer, result: TriageResult) -> tuple[dict[str, str],
         return {}, [EXPLAIN_WARNING]
 
 
-# The drawer shows these columns first, in this order, so the ones that prove a finding are never off screen.
-# Fields are the engine's normalised names; the user's own headers are looked up through `field_headers`.
-IDENTITY_FIELDS = {
-    "invoices": ("invoice_no", "vendor"),
-    "purchase_orders": ("po_no", "vendor"),
-    "payments": ("payment_id", "payee", "invoice_ref"),
+# The drawer shows these columns first, in this order. Invoices lead with the number, date and total; the
+# page then brings any flagged column up next. Fields are the engine's normalised names; the user's own
+# headers are looked up through `field_headers`.
+LEAD_FIELDS = {
+    "invoices": ("invoice_no", "invoice_date", "total"),
+    "purchase_orders": ("po_no", "vendor", "qty", "rate", "amount", "gst_rate"),
+    "payments": ("payment_id", "payee", "invoice_ref", "amount_paid", "tds"),
 }
+# Amount columns are right aligned in the drawer.
 AMOUNT_FIELDS = {
     "invoices": ("qty", "rate", "taxable_value", "gst_rate", "gst_amount", "total"),
     "purchase_orders": ("qty", "rate", "amount", "gst_rate"),
@@ -86,14 +88,14 @@ AMOUNT_FIELDS = {
 }
 
 
-def column_plan(kind: str, header: list[str], field_headers: dict[str, str]) -> tuple[list[str], list[str]]:
-    """(columns in drawer order, the amount columns). Every header is kept; none is dropped."""
+def column_plan(kind: str, header: list[str], field_headers: dict[str, str]) -> tuple[list[str], list[str], int]:
+    """(columns in drawer order, the amount columns, how many lead). Every header is kept; none is dropped."""
     def mapped(fields: tuple[str, ...]) -> list[str]:
         return [field_headers[f] for f in fields if field_headers.get(f) in header]
 
-    first, amounts = mapped(IDENTITY_FIELDS[kind]), mapped(AMOUNT_FIELDS[kind])
-    rest = [h for h in header if h not in first and h not in amounts]
-    return first + amounts + rest, amounts
+    lead, amounts = mapped(LEAD_FIELDS[kind]), mapped(AMOUNT_FIELDS[kind])
+    rest = [h for h in header if h not in lead]
+    return lead + rest, amounts, len(lead)
 
 
 def exception_rows(exc: TriageException, result: TriageResult,
@@ -152,8 +154,9 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
     files = {}
     for kind, table in records.items():
         header = list(next(iter(table.values())).raw) if table else []
-        columns, amounts = column_plan(kind, header, result.field_headers.get(kind, {}))
-        files[kind] = {"filename": filenames[kind], "header": header, "columns": columns, "amount_columns": amounts}
+        columns, amounts, lead = column_plan(kind, header, result.field_headers.get(kind, {}))
+        files[kind] = {"filename": filenames[kind], "header": header, "columns": columns,
+                       "amount_columns": amounts, "lead_columns": lead}
     return {
         "source": source,
         "totals": {
