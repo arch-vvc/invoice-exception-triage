@@ -121,10 +121,10 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chip .n { margin-left: 5px; opacity: .75; font-variant-numeric: tabular-nums; }
 .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
-table.exc { width: 100%; min-width: 1040px; border-collapse: collapse; table-layout: fixed; }
+table.exc { width: 100%; min-width: 1120px; border-collapse: collapse; table-layout: fixed; }
 .exc th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
-  padding: 11px 14px; border-bottom: 1px solid var(--border); background: #fafbfc; white-space: nowrap; }
-.exc td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; }
+  padding: 11px 14px; border-bottom: 1px solid var(--border); background: #fafbfc; line-height: 1.3; }
+.exc td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; overflow-wrap: anywhere; }
 .exc tbody tr:last-child td { border-bottom: 0; }
 .exc tbody tr { cursor: pointer; }
 .exc tbody tr:hover { background: #f5f7fc; }
@@ -138,9 +138,8 @@ table.exc { width: 100%; min-width: 1040px; border-collapse: collapse; table-lay
 .exc .kind { margin-top: 6px; font-weight: 600; }
 .exc .inv { font-weight: 600; }
 .exc .vend { margin-top: 3px; color: var(--muted); }
-.col-amt { width: 132px; } .col-kind { width: 150px; } .col-inv { width: 190px; } .col-why { width: auto; } .col-act { width: 220px; }
-.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.clamp.c3 { -webkit-line-clamp: 3; line-clamp: 3; }
+.col-amt { width: 160px; } .col-kind { width: 156px; } .col-inv { width: 200px; } .col-why { width: auto; } .col-act { width: 230px; }
+.wrap-text { overflow-wrap: anywhere; }
 .muted { color: var(--muted); }
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 
@@ -178,13 +177,27 @@ table.exc { width: 100%; min-width: 1040px; border-collapse: collapse; table-lay
 .rowgroup { margin-top: 16px; }
 .rowgroup .cap { font-size: 13px; font-weight: 650; margin-bottom: 6px; }
 .rowgroup .cap .where { color: var(--muted); font-weight: 500; }
+.mini-scroll { position: relative; }
+.mini-scroll::before, .mini-scroll::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 26px; pointer-events: none;
+  opacity: 0; transition: opacity .12s; z-index: 2; }
+.mini-scroll::before { left: 1px; background: linear-gradient(to right, rgba(20, 28, 45, .18), rgba(20, 28, 45, 0)); border-radius: 8px 0 0 8px; }
+.mini-scroll::after { right: 1px; background: linear-gradient(to left, rgba(20, 28, 45, .18), rgba(20, 28, 45, 0)); border-radius: 0 8px 8px 0; }
+.mini-scroll.more-left::before, .mini-scroll.more-right::after { opacity: 1; }
 .mini-wrap { border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+.scroll-cue { margin-top: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 table.mini { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12.5px; }
 .mini th { text-align: left; font-weight: 650; color: var(--muted); background: #fafbfc; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .mini td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mini tr:last-child td { border-bottom: 0; }
 .mini .rn { position: sticky; left: 0; background: #fafbfc; font-weight: 650; border-right: 1px solid var(--border); }
 .mini td.blank { color: #8a93a2; }
+.mini th.amt, .mini td.amt { text-align: right; }
+.mini th.amt { box-shadow: inset 0 -2px 0 var(--border-strong); }
+.mini td.flag { background: var(--med-bg); color: var(--med-fg); font-weight: 700; box-shadow: inset 0 0 0 2px var(--med-dot); }
+.mini th.flag { background: var(--med-bg); color: var(--med-fg); }
+.rowtag { display: block; margin-top: 2px; font-size: 11px; font-weight: 650; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--med-bg); box-shadow: inset 0 0 0 2px var(--med-dot); vertical-align: -2px; margin-right: 4px; }
+.note { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
 .none-note { color: var(--muted); font-size: 13px; }
 p.none-note { font-size: 14px; }
 
@@ -508,11 +521,9 @@ function renderTable() {
   wrap.append(table);
 }
 
-function clampCell(cls, text, placeholder, lines) {
+function textCell(cls, text, placeholder) {
   const td = el("td", cls);
-  const inner = el("div", "clamp" + (lines === 3 ? " c3" : "") + (text ? "" : " muted"), text || placeholder);
-  if (text) inner.title = text;
-  td.append(inner);
+  td.append(el("div", "wrap-text" + (text ? "" : " muted"), text || placeholder));
   return td;
 }
 
@@ -524,9 +535,9 @@ function tableRow(exc) {
   tr.setAttribute("aria-label", exc.type_label + " on invoice " + exc.invoice_no + ", open details");
   const amt = el("td", "num" + (exc.amount_at_risk === 0 ? " zero" : ""), exc.amount_at_risk_display);
   const kind = add(el("td"), el("span", "pill " + exc.severity, exc.severity), el("div", "kind", exc.type_label));
-  const who = add(el("td"), el("div", "inv mono", exc.invoice_no), el("div", "vend clamp", exc.vendor));
+  const who = add(el("td"), el("div", "inv mono", exc.invoice_no), el("div", "vend wrap-text", exc.vendor));
   add(tr, amt, kind, who,
-      clampCell("why", exc.explanation, "No explanation yet", 3), clampCell("act", exc.suggested_action, "", 3));
+      textCell("why", exc.explanation, "No explanation yet"), textCell("act", exc.suggested_action, ""));
   tr.addEventListener("click", () => openDrawer(exc, tr));
   tr.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(exc, tr); }
@@ -562,8 +573,10 @@ function openDrawer(exc, opener) {
   add(body, el("h3", null, "What we found"),
       el("p", exc.explanation ? "lead" : "none-note", exc.explanation || "No explanation is available for this one."),
       el("h3", null, "Suggested action"), el("p", "todo", exc.suggested_action),
-      el("h3", null, "Your rows"), el("p", "sub-h", "Straight from your files, with your own column names."));
-  for (const spec of KINDS) body.append(rowGroup(spec.kind, exc.rows[spec.kind] || []));
+      el("h3", null, "Your rows"),
+      el("p", "sub-h", "Straight from your files, with your own column names. Amount columns come first."),
+      legend());
+  for (const spec of KINDS) body.append(rowGroup(spec.kind, exc.rows[spec.kind] || [], (exc.notes || {})[spec.kind]));
   drawer.append(body);
 
   $("scrim").hidden = false;
@@ -573,7 +586,13 @@ function openDrawer(exc, opener) {
   requestAnimationFrame(() => { drawer.classList.add("open"); close.focus(); });
 }
 
-function rowGroup(kind, rows) {
+function legend() {
+  const p = el("p", "sub-h");
+  add(p, el("span", "key"), "The highlighted cells are the ones that prove the finding.");
+  return p;
+}
+
+function rowGroup(kind, rows, note) {
   const info = state.data.files[kind];
   const group = el("div", "rowgroup");
   const cap = el("div", "cap", info.filename);
@@ -583,30 +602,53 @@ function rowGroup(kind, rows) {
   }
   const numbers = rows.map((r) => r.row);
   cap.append(el("span", "where", " · " + (numbers.length === 1 ? "row " : "rows ") + numbers.join(", ")));
+  const columns = (info.columns && info.columns.length) ? info.columns : (info.header.length ? info.header : Object.keys(rows[0].cells));
+  const amounts = new Set(info.amount_columns || []);
+  const flagged = new Set(rows.flatMap((r) => r.flagged || []));
   const table = el("table", "mini");
   const headRow = el("tr");
   const rowTh = el("th", "rn", "Row");
   rowTh.scope = "col";
   headRow.append(rowTh);
-  const headers = info.header.length ? info.header : Object.keys(rows[0].cells);
-  for (const h of headers) {
-    const th = el("th", null, h);
+  for (const h of columns) {
+    const th = el("th", (amounts.has(h) ? "amt" : "") + (flagged.has(h) ? " flag" : ""), h);
     th.scope = "col";
     headRow.append(th);
   }
   const tbody = el("tbody");
   for (const r of rows) {
     const tr = el("tr");
-    tr.append(el("td", "rn", String(r.row)));
-    for (const h of headers) {
+    const rn = el("td", "rn", String(r.row));
+    if (r.label) rn.append(el("span", "rowtag", r.label));
+    tr.append(rn);
+    for (const h of columns) {
       const value = r.cells[h];
-      tr.append(value ? el("td", null, value) : el("td", "blank", "—"));
+      const cls = (amounts.has(h) ? "amt" : "") + ((r.flagged || []).includes(h) ? " flag" : "") + (value ? "" : " blank");
+      tr.append(el("td", cls.trim() || null, value || "—"));
     }
     tbody.append(tr);
   }
   add(table, add(el("thead"), headRow), tbody);
-  add(group, cap, add(el("div", "mini-wrap"), table));
+  const wrap = add(el("div", "mini-wrap"), table);
+  const scroller = add(el("div", "mini-scroll"), wrap);
+  add(group, cap, note ? el("p", "note", note) : null, scroller, scrollCue(scroller, wrap));
   return group;
+}
+
+/* A wide table scrolls sideways inside the drawer. Edge shadows and a line of text say there is more. */
+function scrollCue(scroller, wrap) {
+  const cue = el("div", "scroll-cue", "Scroll sideways for more columns →");
+  cue.hidden = true;
+  const update = () => {
+    const room = wrap.scrollWidth - wrap.clientWidth;
+    cue.hidden = room <= 1;
+    scroller.classList.toggle("more-left", wrap.scrollLeft > 1);
+    scroller.classList.toggle("more-right", wrap.scrollLeft < room - 1);
+  };
+  wrap.addEventListener("scroll", update, { passive: true });
+  requestAnimationFrame(update);
+  window.addEventListener("resize", update);
+  return cue;
 }
 
 function closeDrawer(restoreFocus) {

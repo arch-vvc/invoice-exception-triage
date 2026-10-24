@@ -1,7 +1,7 @@
 exception_type,invoice_no,vendor,po_no,payment_refs,invoice_row,amount_at_risk,severity,planted_note
-duplicate_invoice,INV/42,Sundaram Brake Linings Pvt Ltd,,,17,145140.00,high,"SYNTHETIC: same vendor and same bill as INV-0042, rewritten with different separators."
+duplicate_invoice,INV/42,Sundaram Brake Linings Pvt Ltd,PO-00108,PV/24-25/0102,17,145140.00,high,"SYNTHETIC: same vendor and same bill as INV-0042, rewritten with different separators."
 missing_po,AS/0071,Apex Safety Products,,,22,129800.00,high,SYNTHETIC: Order No is blank and Apex Safety Products has no PO on file.
-duplicate_invoice,SE-24-25-107,Sai Engineering Works,,,31,90624.00,high,"SYNTHETIC: same vendor and same bill as SE/24-25/0107, rewritten with different separators."
+duplicate_invoice,SE-24-25-107,Sai Engineering Works,PO-00129,PV/24-25/0106,31,90624.00,high,"SYNTHETIC: same vendor and same bill as SE/24-25/0107, rewritten with different separators."
 overpayment,SGS/0455,Shree Ganesh Steels,PO-00105,PV/24-25/0128;PV/24-25/0129,39,87320.00,high,SYNTHETIC: the invoice was paid twice by two separate bank transfers.
 partial_payment,AP/0925,Aarav Paints and Coatings Pvt Ltd,PO-00120,PV/24-25/0109,14,87200.00,medium,SYNTHETIC: only part of the invoice has been paid and no further payment is on file.
 missing_po,OSE/2024/361,Om Sai Electricals,,,35,47200.00,medium,SYNTHETIC: Order No PO-00999 does not exist in the PO file.

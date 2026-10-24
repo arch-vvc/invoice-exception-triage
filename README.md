@@ -28,7 +28,7 @@ If port 8765 is busy, pass `--port 8800` (or any free port).
 ## What you will see
 - A strip of totals: invoices checked, exceptions found, total amount at risk and how many are high severity.
 - A table of exceptions, biggest rupee risk first, with type, severity, invoice, vendor, PO, amount and the suggested next step.
-- Click a row to open the exact rows behind it, exactly as they appear in your invoice, PO and payment files, with the row numbers Excel shows.
+- Click a row to open the exact rows behind it, exactly as they appear in your invoice, PO and payment files, with the row numbers Excel shows. The cells that prove the finding are highlighted, and the amount columns come first so they are never off screen. For a duplicate you see the original invoice first, then the duplicate, with the original's PO and payments.
 - A "Download CSV report" button with the same table, explanations included, ready to send to a vendor or a controller.
 
 You can also drop your own three CSV files on the page instead of using the sample. They stay in memory on your machine and are gone when you stop the server.

@@ -72,6 +72,55 @@ def explain(server: TriageServer, result: TriageResult) -> tuple[dict[str, str],
         return {}, [EXPLAIN_WARNING]
 
 
+# The drawer shows these columns first, in this order, so the ones that prove a finding are never off screen.
+# Fields are the engine's normalised names; the user's own headers are looked up through `field_headers`.
+IDENTITY_FIELDS = {
+    "invoices": ("invoice_no", "vendor"),
+    "purchase_orders": ("po_no", "vendor"),
+    "payments": ("payment_id", "payee", "invoice_ref"),
+}
+AMOUNT_FIELDS = {
+    "invoices": ("qty", "rate", "taxable_value", "gst_rate", "gst_amount", "total"),
+    "purchase_orders": ("qty", "rate", "amount", "gst_rate"),
+    "payments": ("amount_paid", "tds"),
+}
+
+
+def column_plan(kind: str, header: list[str], field_headers: dict[str, str]) -> tuple[list[str], list[str]]:
+    """(columns in drawer order, the amount columns). Every header is kept; none is dropped."""
+    def mapped(fields: tuple[str, ...]) -> list[str]:
+        return [field_headers[f] for f in fields if field_headers.get(f) in header]
+
+    first, amounts = mapped(IDENTITY_FIELDS[kind]), mapped(AMOUNT_FIELDS[kind])
+    rest = [h for h in header if h not in first and h not in amounts]
+    return first + amounts + rest, amounts
+
+
+def exception_rows(exc: TriageException, result: TriageResult,
+                   records: dict[str, dict[int, object]]) -> tuple[dict, dict]:
+    """The raw rows behind one exception, with the cells that prove it, plus any notes for the reader."""
+    flagged: dict[tuple[str, int], list[str]] = {}
+    for cell in exc.flagged_cells:
+        header = result.field_headers.get(cell["kind"], {}).get(cell["field"])
+        if header:
+            flagged.setdefault((cell["kind"], cell["row"]), []).append(header)
+    rows, notes = {}, {}
+    for kind in records:
+        numbers = list(exc.source_rows.get(kind, []))
+        labels: dict[int, str] = {}
+        if exc.type == "duplicate_invoice":
+            if kind == "invoices":  # the engine lists the duplicate first; the reader wants the original first
+                numbers.reverse()
+                labels = {numbers[0]: "Original", numbers[-1]: "Duplicate"}
+            elif numbers:
+                original = exc.facts["original_invoice_no"]
+                notes[kind] = (f"Linked to the original invoice, {original}, which the duplicate repeats: "
+                               + ("its purchase order." if kind == "purchase_orders" else "what was paid against it."))
+        rows[kind] = [{"row": n, "cells": dict(records[kind][n].raw), "label": labels.get(n, ""),
+                       "flagged": flagged.get((kind, n), [])} for n in numbers if n in records[kind]]
+    return rows, notes
+
+
 def build_result(result: TriageResult, explanations: dict[str, str], filenames: dict[str, str], source: str) -> dict:
     """The JSON the dashboard draws. Money arrives as ready-made *_display strings."""
     records = {
@@ -81,9 +130,7 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
     }
     exceptions = []
     for exc in result.exceptions:
-        rows = {kind: [{"row": n, "cells": dict(records[kind][n].raw)} for n in exc.source_rows.get(kind, [])
-                       if n in records[kind]]
-                for kind in records}
+        rows, notes = exception_rows(exc, result, records)
         exceptions.append({
             "id": exc.id,
             "type": exc.type,
@@ -97,10 +144,16 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
             "suggested_action": exc.suggested_action,
             "explanation": explanations.get(exc.id, ""),
             "rows": rows,
+            "notes": notes,
         })
     by_type: dict[str, int] = {}
     for exc in exceptions:
         by_type[exc["type"]] = by_type.get(exc["type"], 0) + 1
+    files = {}
+    for kind, table in records.items():
+        header = list(next(iter(table.values())).raw) if table else []
+        columns, amounts = column_plan(kind, header, result.field_headers.get(kind, {}))
+        files[kind] = {"filename": filenames[kind], "header": header, "columns": columns, "amount_columns": amounts}
     return {
         "source": source,
         "totals": {
@@ -113,9 +166,7 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
         },
         "exceptions": exceptions,
         "warnings": list(result.warnings),
-        "files": {kind: {"filename": filenames[kind], "header": list(next(iter(table.values())).raw)
-                         if table else []}
-                  for kind, table in records.items()},
+        "files": files,
     }
 
 
