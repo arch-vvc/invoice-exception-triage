@@ -245,16 +245,27 @@ def test_flagged_cells_come_back_as_the_users_own_column_headers(sample_json):
     assert paid["rows"]["invoices"][0]["flagged"] == ["Invoice Amount"]
 
 
-def test_the_amount_columns_come_right_after_the_identity_columns(sample_json):
+def test_invoice_columns_lead_with_bill_number_date_and_invoice_total(sample_json):
+    columns = sample_json["files"]["invoices"]["columns"]
+    assert columns[:3] == ["Bill Number", "Date", "Invoice Amount"]
+    assert columns[3:] == [h for h in sample_json["files"]["invoices"]["header"] if h not in columns[:3]]
+
+
+def test_payments_and_po_columns_still_lead_with_identity_then_amounts(sample_json):
     files = sample_json["files"]
-    assert files["invoices"]["columns"][:2] == ["Bill Number", "Party Name"]
-    assert files["invoices"]["columns"][2:8] == ["Billed Qty", "Rate", "Taxable Value", "GST %", "Tax Amount",
-                                                 "Invoice Amount"]
+    assert files["payments"]["columns"][:5] == ["Payment Voucher", "Paid To", "Against Bill", "Amount Paid",
+                                                 "TDS Deducted"]
+    assert files["purchase_orders"]["columns"][:6] == ["PO#", "Vendor Name", "Quantity", "Unit Price", "Sub Total",
+                                                        "Tax %"]
+
+
+def test_amount_columns_are_still_marked_and_nothing_is_dropped(sample_json):
+    files = sample_json["files"]
     assert set(files["invoices"]["amount_columns"]) == {"Billed Qty", "Rate", "Taxable Value", "GST %",
                                                         "Tax Amount", "Invoice Amount"}
-    assert files["payments"]["columns"][:2] == ["Payment Voucher", "Paid To"]
     assert {"Amount Paid", "TDS Deducted"} <= set(files["payments"]["amount_columns"])
-    assert sorted(files["invoices"]["columns"]) == sorted(files["invoices"]["header"])  # nothing is dropped
+    for kind in files:
+        assert sorted(files[kind]["columns"]) == sorted(files[kind]["header"])
 
 
 # ---- the page: no ellipsis, a scroll cue, amount columns marked ----
@@ -267,4 +278,10 @@ def test_the_page_never_truncates_text_with_an_ellipsis():
 def test_the_page_has_a_scroll_cue_for_wide_drawer_tables():
     html = INDEX_HTML.read_text(encoding="utf-8")
     assert "scroll-cue" in html and "amount_columns" in html and "flagged" in html
+
+
+def test_flagged_cells_get_a_strong_tint_and_flagged_columns_follow_the_lead_columns():
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    assert "--flag-bg" in html and re.search(r"\.mini td\.flag\s*\{[^}]*background:\s*var\(--flag-bg\)", html)
+    assert "flaggedFirst" in html
     assert set(SAMPLE_FILES) <= {"invoices", "purchase_orders", "payments"}
