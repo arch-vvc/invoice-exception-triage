@@ -1,0 +1,3 @@
+# Runtime is the Python standard library only. These are for tests and lint.
+pytest>=8.0
+ruff>=0.6
