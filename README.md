@@ -4,8 +4,8 @@ Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payme
 
 ## Run it in 60 seconds
 ```bash
-git clone <PASTE-REPO-URL-HERE>
-cd <repo-folder>
+git clone https://github.com/arch-vvc/invoice-exception-triage.git
+cd invoice-exception-triage
 python run.py --check
 python run.py
 ```
