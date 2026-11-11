@@ -1,8 +1,8 @@
 """Run the exception triage demo: serve the dashboard, or check the sample data from the terminal.
 
-    python demos/exception-triage/run.py              serve the dashboard on http://127.0.0.1:8765
-    python demos/exception-triage/run.py --check      triage the sample data and compare it with the answer key
-    python demos/exception-triage/run.py --refresh --explainer claude-cli
+    python run.py              serve the dashboard on http://127.0.0.1:8765
+    python run.py --check      triage the sample data and compare it with the answer key
+    python run.py --refresh --explainer claude-cli
                                                       rewrite the cached explanations with a model
 
 Standard library only. The server itself never calls a model.

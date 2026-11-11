@@ -4,10 +4,10 @@ Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payme
 
 ## Run it in 60 seconds
 ```bash
-git clone https://github.com/arch-vvc/lets-fucking-get-a-fde-job-and-make-money.git
-cd lets-fucking-get-a-fde-job-and-make-money
-python demos/exception-triage/run.py --check
-python demos/exception-triage/run.py
+git clone <PASTE-REPO-URL-HERE>
+cd <repo-folder>
+python run.py --check
+python run.py
 ```
 Then open http://127.0.0.1:8765 and click "Use sample data".
 
@@ -67,8 +67,8 @@ The dashboard only ever uses those two. It never calls a model, even for files y
 
 To write the cached sentences with Claude Haiku, run one of these once:
 ```bash
-python demos/exception-triage/run.py --refresh --explainer claude-cli   # uses your Claude Code login
-python demos/exception-triage/run.py --refresh --explainer anthropic    # needs ANTHROPIC_API_KEY
+python run.py --refresh --explainer claude-cli   # uses your Claude Code login
+python run.py --refresh --explainer anthropic    # needs ANTHROPIC_API_KEY
 ```
 Each sentence is only accepted if it is one line, mentions the invoice number and uses no rupee amount that is not in the facts. Anything else falls back to the template.
 
@@ -82,7 +82,7 @@ There are 40 invoices, 30 purchase orders and 35 payments, with 16 exceptions pl
 ## Tests
 ```bash
 pip install -r requirements.txt
-python -m pytest -q demos/exception-triage/tests
+python -m pytest -q tests
 ```
 No test touches the network or starts a model.
 
