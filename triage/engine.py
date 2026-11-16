@@ -74,7 +74,8 @@ class TriageResult:
     warnings: list[str] = field(default_factory=list)
     unmatched_payment_ids: list[str] = field(default_factory=list)
     invoices_checked: int = 0
-    amount_at_risk: float = 0.0
+    amount_at_risk: float = 0.0  # each invoice counted once, at its largest finding
+    amount_at_risk_findings: float = 0.0  # the plain sum across all findings
     field_headers: dict[str, dict[str, str]] = field(default_factory=dict)  # kind -> {field name: user's header}
 
 
@@ -401,6 +402,19 @@ def _repeated_po_warnings(pos: list[PurchaseOrder]) -> list[str]:
 
 # ---- entry points ----
 
+def unique_amount_at_risk(found: list[TriageException]) -> float:
+    """Each invoice counted once, at its largest finding. A finding with no invoice counts on its own."""
+    largest: dict[int, float] = {}
+    alone = 0.0
+    for exc in found:
+        rows = exc.source_rows.get("invoices", [])
+        if not rows:
+            alone += exc.amount_at_risk
+        else:
+            largest[rows[0]] = max(largest.get(rows[0], 0.0), exc.amount_at_risk)
+    return round(sum(largest.values()) + alone, 2)
+
+
 def triage(invoices: list[Invoice], pos: list[PurchaseOrder], payments: list[Payment],
            tol: Tolerance | None = None) -> TriageResult:
     """Link the three lists, run every check, and return the exceptions sorted by rupees at risk."""
@@ -431,7 +445,8 @@ def triage(invoices: list[Invoice], pos: list[PurchaseOrder], payments: list[Pay
         ],
         unmatched_payment_ids=[p.payment_id for p, _ in unmatched],
         invoices_checked=len(checked),
-        amount_at_risk=round(sum(e.amount_at_risk for e in found), 2),
+        amount_at_risk=unique_amount_at_risk(found),
+        amount_at_risk_findings=round(sum(e.amount_at_risk for e in found), 2),
     )
 
 

@@ -164,6 +164,8 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
             "exceptions_found": len(exceptions),
             "amount_at_risk": result.amount_at_risk,
             "amount_at_risk_display": format_inr(result.amount_at_risk),
+            "amount_at_risk_findings": result.amount_at_risk_findings,
+            "amount_at_risk_findings_display": format_inr(result.amount_at_risk_findings),
             "by_type": by_type,
             "high_count": sum(1 for e in exceptions if e["severity"] == "high"),
         },

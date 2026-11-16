@@ -130,7 +130,9 @@ def test_sample_totals(client):
     totals = result["totals"]
     assert totals["invoices_checked"] == 40
     assert totals["exceptions_found"] == len(answer_key_rows()) == len(result["exceptions"])
-    assert totals["amount_at_risk"] == pytest.approx(sum(e["amount_at_risk"] for e in result["exceptions"]), abs=0.01)
+    plain_sum = sum(e["amount_at_risk"] for e in result["exceptions"])
+    assert totals["amount_at_risk_findings"] == pytest.approx(plain_sum, abs=0.01)  # T2: the plain sum stays in the API
+    assert 0 < totals["amount_at_risk"] <= totals["amount_at_risk_findings"]
     assert totals["amount_at_risk_display"].startswith("₹")
     assert result["source"] == "sample"
 

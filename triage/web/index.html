@@ -112,6 +112,7 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .stat.risk .label { color: var(--high-fg); font-size: 13px; }
 .stat.risk .value { font-size: 64px; line-height: 1.05; letter-spacing: -.035em; color: var(--high-fg); margin-top: 6px; }
 .stat.risk .sub { font-size: 15px; color: var(--text); margin-top: 10px; }
+.stat .sub small.across { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .notice { background: #fff8e6; border: 1px solid #f0d58a; color: #5c3c00; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
 .notice ul { margin: 4px 0 0; padding-left: 18px; }
 .toolbar { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
@@ -453,6 +454,9 @@ function renderStats(data) {
   risk.sub.textContent = t.exceptions_found
     ? t.exceptions_found + " of " + t.invoices_checked + " invoices do not add up. Biggest first below."
     : "Every invoice matched its PO and payments.";
+  if (t.amount_at_risk_findings !== t.amount_at_risk) {
+    add(risk.sub, el("small", "across", "across all findings: " + t.amount_at_risk_findings_display));
+  }
   const found = stat("Exceptions found", String(t.exceptions_found));
   if (t.high_count > 0) add(found.sub, el("span", "pill high", t.high_count + " high"), el("span", null, "fix these first"));
   else found.sub.textContent = t.exceptions_found ? "None are high severity" : "Everything matched";

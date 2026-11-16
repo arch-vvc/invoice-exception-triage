@@ -26,9 +26,11 @@ Needs Python 3.10 or newer. Nothing to install to run it, because the demo uses 
 invoices checked: 40
 exceptions found: 16
 amount at risk: ₹7,11,230
+across all findings: ₹7,11,230
 explanations cached: 16/16
 answer key: 16/16 matched, 0 extra
 ```
+"Amount at risk" counts each invoice once, at its largest finding. "Across all findings" is the plain sum, so it is higher when one invoice has two findings. In the sample no invoice has two, so the two are equal and the dashboard hides the smaller line.
 `explanations cached` is 16/16 because the Haiku sentences for the sample data are committed in `sample_data/explanations_cache.json`. Delete that file and the count drops to 0/16; the dashboard then falls back to the built in templates (see Explanations).
 
 If port 8765 is busy, pass `--port 8800` (or any free port).
@@ -102,6 +104,5 @@ No test touches the network or starts a model.
 - Single user, local only. There is no login.
 - The three way match is PO, invoice and payment. There is no goods receipt file, so quantity is checked against the PO only.
 - Credit notes (negative invoices) are skipped with a warning, not netted.
-- The amount at risk adds up findings per invoice. If one invoice has two findings, the same rupees can count twice in the headline.
 - Not covered yet: GSTR-2B and ITC eligibility, place of supply (IGST against CGST plus SGST), TDS section and rate checks, MSME payment deadlines, vendor master and bank detail changes.
 - The accuracy figure (16 of 16) is measured against a planted answer key on synthetic data. It shows the checks work, not how they score on a real export.

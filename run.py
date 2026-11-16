@@ -73,6 +73,7 @@ def check() -> int:
     print(f"invoices checked: {result.invoices_checked}")
     print(f"exceptions found: {count}")
     print(f"amount at risk: {format_inr(result.amount_at_risk)}")
+    print(f"across all findings: {format_inr(result.amount_at_risk_findings)}")
     print(f"explanations cached: {cached_count(result.exceptions)}/{count}")
     print(f"answer key: {len(key) - len(missing)}/{len(key)} matched, {len(extra)} extra")
     for kind, invoice_no in sorted(missing):
