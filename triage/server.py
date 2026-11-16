@@ -20,7 +20,7 @@ from urllib.parse import unquote, urlsplit
 from .engine import SAMPLE_FILES, TriageException, TriageResult, triage_bytes, triage_dir
 from .loader import InputError, load_table
 from .normalise import format_inr
-from .report import to_csv
+from .report import TYPE_LABELS, to_csv_bytes
 
 INDEX_HTML = Path(__file__).resolve().parent / "web" / "index.html"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -30,17 +30,6 @@ GENERIC_ERROR = "Something went wrong on our side. Check the terminal for detail
 EXPLAIN_WARNING = "Explanations are unavailable right now, so the table shows the numbers without them."
 CONTENT_SECURITY_POLICY = ("default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
                            "connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'")
-
-TYPE_LABELS = {
-    "duplicate_invoice": "Duplicate invoice",
-    "missing_po": "Missing PO",
-    "vendor_name_mismatch": "Vendor name mismatch",
-    "amount_mismatch": "Amount mismatch",
-    "quantity_mismatch": "Quantity mismatch",
-    "gst_error": "GST error",
-    "partial_payment": "Partial payment",
-    "overpayment": "Overpayment",
-}
 
 
 class TriageServer(ThreadingHTTPServer):
@@ -311,6 +300,6 @@ class Handler(BaseHTTPRequestHandler):
             last = self.server.last
         if last is None:
             raise InputError("There is no result to download yet. Run triage, or use the sample data, first.")
-        body = b"\xef\xbb\xbf" + to_csv(*last).encode("utf-8")  # the BOM makes Excel show the rupee sign properly
+        body = to_csv_bytes(*last)
         self.send_bytes(200, body, "text/csv; charset=utf-8",
                         {"Content-Disposition": 'attachment; filename="exception-report.csv"'})

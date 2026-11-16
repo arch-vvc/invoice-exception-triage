@@ -25,8 +25,8 @@ from triage.engine import triage_bytes, triage_dir  # noqa: E402
 from triage.explain import cached_count, explain_all, refresh_cache  # noqa: E402
 from triage.loader import InputError  # noqa: E402
 from triage.normalise import format_inr  # noqa: E402
-from triage.report import to_csv  # noqa: E402
-from triage.server import TYPE_LABELS, make_server  # noqa: E402
+from triage.report import TYPE_LABELS, to_csv_bytes  # noqa: E402
+from triage.server import make_server  # noqa: E402
 
 SAMPLE_DIR = DEMO_DIR / "sample_data"
 ANSWER_KEY = SAMPLE_DIR / "expected_exceptions.csv"
@@ -144,8 +144,7 @@ def check_folder(folder: str, csv_path: str | None) -> int:
         print(f"warning: {warning}")
     explanations = explain_all(result.exceptions, backend="offline")
     if csv_path:
-        with open(csv_path, "w", encoding="utf-8-sig", newline="") as handle:
-            handle.write(to_csv(result.exceptions, explanations))
+        Path(csv_path).write_bytes(to_csv_bytes(result.exceptions, explanations))
         print(f"report written to {csv_path}")
     if not count:
         print("no exceptions found")

@@ -415,14 +415,14 @@ def test_report_csv_after_the_sample_run(client):
     assert 'attachment; filename="exception-report.csv"' in headers["Content-Disposition"]
     assert body.startswith(b"\xef\xbb\xbf")  # UTF-8 BOM so Excel shows the rupee sign correctly
     text = body.decode("utf-8-sig")
-    assert text.splitlines()[0] == ("id,type,severity,invoice_no,vendor,po_no,payment_ids,amount_at_risk,"
-                                    "suggested_action,explanation,source_rows")
+    assert text.splitlines()[0] == ("Exception,Severity,Invoice,Vendor,PO,Amount at risk (₹),What went wrong,"
+                                    "Suggested action,Source rows")
     rows = list(csv.DictReader(text.splitlines()))
     assert len(rows) == sample["totals"]["exceptions_found"]
-    assert rows[0]["id"] == "EX-01"
-    assert rows[0]["explanation"].startswith("Fake explanation for ")
-    assert re.fullmatch(r"\d+\.\d{2}", rows[0]["amount_at_risk"])
-    assert re.fullmatch(r"invoices:[\d,]+(; (purchase_orders|payments):[\d,]+)*", rows[0]["source_rows"])
+    assert rows[0]["What went wrong"].startswith("Fake explanation for ")
+    assert re.fullmatch(r"\d+\.\d{2}", rows[0]["Amount at risk (₹)"])
+    assert re.fullmatch(r"Invoices row [\d, ]+(; (Purchase orders|Payments) row [\d, ]+)*", rows[0]["Source rows"])
+    assert rows[0]["Severity"] in {"High", "Medium", "Low"}
 
 
 # ---- failures ----
