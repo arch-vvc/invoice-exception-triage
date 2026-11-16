@@ -25,6 +25,7 @@ from .report import TYPE_LABELS, to_csv_bytes
 INDEX_HTML = Path(__file__).resolve().parent / "web" / "index.html"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 DRAIN_LIMIT_BYTES = 64 * 1024 * 1024  # of a rejected upload we read and discard, so the browser sees the 413
+MAX_EXCEPTIONS = 500  # most exceptions the API returns for the table; totals and the CSV always cover all of them
 FILENAME_LIMIT = 120
 GENERIC_ERROR = "Something went wrong on our side. Check the terminal for details."
 EXPLAIN_WARNING = "Explanations are unavailable right now, so the table shows the numbers without them."
@@ -120,7 +121,8 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
         "payments": {r.source_row: r for r in result.payments},
     }
     exceptions = []
-    for exc in result.exceptions:
+    largest_first = sorted(result.exceptions, key=lambda e: -e.amount_at_risk)  # a stable sort keeps the engine's order
+    for exc in largest_first[:MAX_EXCEPTIONS]:
         rows, notes = exception_rows(exc, result, records)
         exceptions.append({
             "id": exc.id,
@@ -138,8 +140,8 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
             "notes": notes,
         })
     by_type: dict[str, int] = {}
-    for exc in exceptions:
-        by_type[exc["type"]] = by_type.get(exc["type"], 0) + 1
+    for exc in result.exceptions:  # every exception, not just the ones shown
+        by_type[exc.type] = by_type.get(exc.type, 0) + 1
     files = {}
     for kind, table in records.items():
         header = list(next(iter(table.values())).raw) if table else []
@@ -150,14 +152,15 @@ def build_result(result: TriageResult, explanations: dict[str, str], filenames: 
         "source": source,
         "totals": {
             "invoices_checked": result.invoices_checked,
-            "exceptions_found": len(exceptions),
+            "exceptions_found": len(result.exceptions),
             "amount_at_risk": result.amount_at_risk,
             "amount_at_risk_display": format_inr(result.amount_at_risk),
             "amount_at_risk_findings": result.amount_at_risk_findings,
             "amount_at_risk_findings_display": format_inr(result.amount_at_risk_findings),
             "by_type": by_type,
-            "high_count": sum(1 for e in exceptions if e["severity"] == "high"),
+            "high_count": sum(1 for e in result.exceptions if e.severity == "high"),
         },
+        "truncated": len(result.exceptions) > MAX_EXCEPTIONS,
         "exceptions": exceptions,
         "warnings": list(result.warnings),
         "files": files,

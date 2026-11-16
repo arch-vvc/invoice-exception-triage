@@ -511,6 +511,9 @@ function renderTable() {
     wrap.append(el("div", "empty", state.data.exceptions.length ? "Nothing of that type." : "No exceptions found. Every invoice matched its purchase order and payments."));
     return;
   }
+  if (state.data.truncated) {
+    wrap.append(el("div", "note", "Showing the " + state.data.exceptions.length + " largest of " + state.data.totals.exceptions_found + ". Download the CSV for all of them."));
+  }
   const table = el("table", "exc");
   const head = el("tr");
   for (const [cls, label] of COLUMNS) {
