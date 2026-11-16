@@ -2,6 +2,14 @@
 
 Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payments) and get every mismatch listed with the rupees at risk, the exact rows involved and one plain English sentence on what went wrong. Built for AP teams that do this by hand today, and as a quick check of a new customer's exports before they are loaded into an AP platform.
 
+![The results page: totals strip and the exception table, biggest rupee risk first](screenshots/triage-results-1440.png)
+
+*The results page for the sample data: totals at the top, then every exception with its rupees at risk.*
+
+![The detail drawer for invoice GAC-118 showing the exact source rows](screenshots/drawer2-GAC-118-1440.png)
+
+*Click a row to see the exact invoice, PO and payment rows behind it, with the proving cells tinted.*
+
 ## Run it in 60 seconds
 ```bash
 git clone https://github.com/arch-vvc/invoice-exception-triage.git
