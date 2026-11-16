@@ -2,6 +2,14 @@
 
 Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payments) and get every mismatch listed with the rupees at risk, the exact rows involved and one plain English sentence on what went wrong. Built for AP teams that do this by hand today, and as a quick check of a new customer's exports before they are loaded into an AP platform.
 
+![The results page: totals strip and the exception table, biggest rupee risk first](screenshots/triage-results-1440.png)
+
+*The results page for the sample data: totals at the top, then every exception with its rupees at risk.*
+
+![The detail drawer for invoice GAC-118 showing the exact source rows](screenshots/drawer2-GAC-118-1440.png)
+
+*Click a row to see the exact invoice, PO and payment rows behind it, with the proving cells tinted.*
+
 ## Run it in 60 seconds
 ```bash
 git clone https://github.com/arch-vvc/invoice-exception-triage.git
@@ -18,12 +26,22 @@ Needs Python 3.10 or newer. Nothing to install to run it, because the demo uses 
 invoices checked: 40
 exceptions found: 16
 amount at risk: ₹7,11,230
+across all findings: ₹7,11,230
 explanations cached: 16/16
 answer key: 16/16 matched, 0 extra
 ```
+"Amount at risk" counts each invoice once, at its largest finding. "Across all findings" is the plain sum, so it is higher when one invoice has two findings. In the sample no invoice has two, so the two are equal and the dashboard hides the smaller line.
 `explanations cached` is 16/16 because the Haiku sentences for the sample data are committed in `sample_data/explanations_cache.json`. Delete that file and the count drops to 0/16; the dashboard then falls back to the built in templates (see Explanations).
 
 If port 8765 is busy, pass `--port 8800` (or any free port).
+
+## Check your own exports
+Put your three CSV files in one folder. They are found by name: one containing `invoice` or `purchase register`, one containing `PO` or `purchase order`, one containing `payment`.
+```bash
+python run.py --check --dir path/to/folder
+python run.py --check --dir path/to/folder --csv report.csv
+```
+You get the same summary as `--check` without the answer key line, then the 5 largest findings. `--csv` also writes the full report. If a file is missing or two files match, it says which and exits with code 2.
 
 ## What you will see
 - A strip of totals: invoices checked, exceptions found, total amount at risk and how many are high severity.
@@ -94,6 +112,5 @@ No test touches the network or starts a model.
 - Single user, local only. There is no login.
 - The three way match is PO, invoice and payment. There is no goods receipt file, so quantity is checked against the PO only.
 - Credit notes (negative invoices) are skipped with a warning, not netted.
-- The amount at risk adds up findings per invoice. If one invoice has two findings, the same rupees can count twice in the headline.
 - Not covered yet: GSTR-2B and ITC eligibility, place of supply (IGST against CGST plus SGST), TDS section and rate checks, MSME payment deadlines, vendor master and bank detail changes.
 - The accuracy figure (16 of 16) is measured against a planted answer key on synthetic data. It shows the checks work, not how they score on a real export.

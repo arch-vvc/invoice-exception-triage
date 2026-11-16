@@ -130,7 +130,9 @@ def test_sample_totals(client):
     totals = result["totals"]
     assert totals["invoices_checked"] == 40
     assert totals["exceptions_found"] == len(answer_key_rows()) == len(result["exceptions"])
-    assert totals["amount_at_risk"] == pytest.approx(sum(e["amount_at_risk"] for e in result["exceptions"]), abs=0.01)
+    plain_sum = sum(e["amount_at_risk"] for e in result["exceptions"])
+    assert totals["amount_at_risk_findings"] == pytest.approx(plain_sum, abs=0.01)  # T2: the plain sum stays in the API
+    assert 0 < totals["amount_at_risk"] <= totals["amount_at_risk_findings"]
     assert totals["amount_at_risk_display"].startswith("₹")
     assert result["source"] == "sample"
 
@@ -413,14 +415,14 @@ def test_report_csv_after_the_sample_run(client):
     assert 'attachment; filename="exception-report.csv"' in headers["Content-Disposition"]
     assert body.startswith(b"\xef\xbb\xbf")  # UTF-8 BOM so Excel shows the rupee sign correctly
     text = body.decode("utf-8-sig")
-    assert text.splitlines()[0] == ("id,type,severity,invoice_no,vendor,po_no,payment_ids,amount_at_risk,"
-                                    "suggested_action,explanation,source_rows")
+    assert text.splitlines()[0] == ("Exception,Severity,Invoice,Vendor,PO,Amount at risk (₹),What went wrong,"
+                                    "Suggested action,Source rows")
     rows = list(csv.DictReader(text.splitlines()))
     assert len(rows) == sample["totals"]["exceptions_found"]
-    assert rows[0]["id"] == "EX-01"
-    assert rows[0]["explanation"].startswith("Fake explanation for ")
-    assert re.fullmatch(r"\d+\.\d{2}", rows[0]["amount_at_risk"])
-    assert re.fullmatch(r"invoices:[\d,]+(; (purchase_orders|payments):[\d,]+)*", rows[0]["source_rows"])
+    assert rows[0]["What went wrong"].startswith("Fake explanation for ")
+    assert re.fullmatch(r"\d+\.\d{2}", rows[0]["Amount at risk (₹)"])
+    assert re.fullmatch(r"Invoices row [\d, ]+(; (Purchase orders|Payments) row [\d, ]+)*", rows[0]["Source rows"])
+    assert rows[0]["Severity"] in {"High", "Medium", "Low"}
 
 
 # ---- failures ----
@@ -460,3 +462,66 @@ def test_responses_are_not_cached_or_sniffed(client):
     _, headers, _ = client.request("GET", "/api/sample")
     assert headers["Cache-Control"] == "no-store"
     assert headers["X-Content-Type-Options"] == "nosniff"
+
+
+# ---- T5: the table is capped for huge uploads ----
+
+INV_HEADER = "Inv No,Supplier,GSTIN,Invoice Date,PO Ref,Qty,Unit Price,Taxable Amt,GST Rate,GST Amount,Total"
+GSTIN = "27ABCDE1234F1Z0"
+
+
+def upload_missing_po_invoices(client, count):
+    """`count` invoices that each quote a PO that does not exist, so each gives exactly one finding."""
+    lines = [INV_HEADER]
+    for n in range(1, count + 1):
+        taxable = 1000 + n
+        lines.append(f'INV-{n},"Acme Traders",{GSTIN},01/05/2024,PO-404,1,{taxable},{taxable},18,'
+                     f"{taxable * 0.18:.2f},{taxable * 1.18:.2f}")
+    files = {
+        "invoices": "\n".join(lines) + "\n",
+        "purchase_orders": 'Order Number,Supplier,Qty Ordered,Price,GST %,GSTIN\nPO-1,"Acme Traders",10,100,18,'
+                           + GSTIN + "\n",
+        "payments": 'Payment No,Beneficiary,Bill Ref,Amount,TDS\nPAY-1,"Acme Traders",INV-NONE,10,0\n',
+    }
+    for kind, text in files.items():
+        status, body = client.upload(kind, text.encode("utf-8"))
+        assert status == 200, body
+    status, result = client.triage()
+    assert status == 200, result
+    return result
+
+
+def test_499_exceptions_are_all_returned_and_not_truncated(client):
+    result = upload_missing_po_invoices(client, 499)
+    assert result["totals"]["exceptions_found"] == 499
+    assert len(result["exceptions"]) == 499
+    assert result["truncated"] is False
+
+
+def test_exactly_500_exceptions_are_all_returned_and_not_truncated(client):
+    result = upload_missing_po_invoices(client, 500)
+    assert len(result["exceptions"]) == 500
+    assert result["truncated"] is False
+
+
+def test_600_exceptions_return_the_500_largest_but_totals_and_csv_cover_all_600(client):
+    result = upload_missing_po_invoices(client, 600)
+    assert triage_server.MAX_EXCEPTIONS == 500
+    assert result["truncated"] is True
+    assert len(result["exceptions"]) == 500
+    assert result["totals"]["exceptions_found"] == 600
+    assert result["totals"]["by_type"] == {"missing_po": 600}
+    amounts = [e["amount_at_risk"] for e in result["exceptions"]]
+    assert amounts == sorted(amounts, reverse=True)
+    assert min(amounts) > 1100  # the 100 smallest invoices are the ones left out
+    assert result["totals"]["amount_at_risk_findings"] == pytest.approx(
+        sum(1000 + n for n in range(1, 601)) * 1.18, abs=1)
+    status, _, body = client.request("GET", "/api/report.csv")
+    assert status == 200
+    assert len(list(csv.DictReader(body.decode("utf-8-sig").splitlines()))) == 600
+
+
+def test_page_says_how_many_are_shown_and_points_to_the_csv():
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    assert "Showing the" in html
+    assert "Download the CSV for all of them." in html

@@ -2,6 +2,8 @@
 
     python run.py              serve the dashboard on http://127.0.0.1:8765
     python run.py --check      triage the sample data and compare it with the answer key
+    python run.py --check --dir <folder> [--csv report.csv]
+                               triage your own invoices, PO and payment CSV files in a folder
     python run.py --refresh --explainer claude-cli
                                                       rewrite the cached explanations with a model
 
@@ -10,6 +12,7 @@ Standard library only. The server itself never calls a model.
 import argparse
 import csv
 import functools
+import re
 import signal
 import sys
 import time
@@ -18,9 +21,11 @@ from pathlib import Path
 DEMO_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(DEMO_DIR))
 
-from triage.engine import triage_dir  # noqa: E402
+from triage.engine import triage_bytes, triage_dir  # noqa: E402
 from triage.explain import cached_count, explain_all, refresh_cache  # noqa: E402
+from triage.loader import InputError  # noqa: E402
 from triage.normalise import format_inr  # noqa: E402
+from triage.report import TYPE_LABELS, to_csv_bytes  # noqa: E402
 from triage.server import make_server  # noqa: E402
 
 SAMPLE_DIR = DEMO_DIR / "sample_data"
@@ -33,12 +38,19 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765, help="port to listen on (default 8765)")
     parser.add_argument("--check", action="store_true",
                         help="triage the sample data, compare it with the answer key, print a summary and exit")
+    parser.add_argument("--dir", metavar="FOLDER",
+                        help="with --check: triage the three CSV files in this folder instead of the sample data")
+    parser.add_argument("--csv", metavar="FILE", help="with --check --dir: also write the full report to this file")
     parser.add_argument("--refresh", action="store_true",
                         help="rewrite the cached explanations of the sample exceptions with a model "
                              "(needs --explainer claude-cli or anthropic)")
     parser.add_argument("--explainer", choices=["offline", "claude-cli", "anthropic"], default="offline",
                         help="which model writes the cached sentences for --refresh (default offline)")
     args = parser.parse_args(argv)
+    if (args.dir or args.csv) and not args.check:
+        parser.error("--dir and --csv only apply to --check.")
+    if args.csv and not args.dir:
+        parser.error("--csv needs --dir. Example: --check --dir my_exports --csv report.csv")
     if args.refresh and args.explainer == "offline":
         parser.error("--refresh needs a model. Add --explainer claude-cli (uses your Claude Code login) "
                      "or --explainer anthropic (uses ANTHROPIC_API_KEY).")
@@ -73,6 +85,7 @@ def check() -> int:
     print(f"invoices checked: {result.invoices_checked}")
     print(f"exceptions found: {count}")
     print(f"amount at risk: {format_inr(result.amount_at_risk)}")
+    print(f"across all findings: {format_inr(result.amount_at_risk_findings)}")
     print(f"explanations cached: {cached_count(result.exceptions)}/{count}")
     print(f"answer key: {len(key) - len(missing)}/{len(key)} matched, {len(extra)} extra")
     for kind, invoice_no in sorted(missing):
@@ -81,6 +94,67 @@ def check() -> int:
         print(f"  extra: {kind} {invoice_no}")
     print(f"done in {time.monotonic() - started:.1f}s")
     return 0 if not missing and not extra else 1
+
+
+FILE_PATTERNS = {  # kind -> how its file name must look, after "_" and "-" are read as spaces
+    "invoices": re.compile(r"invoice|purchase register"),
+    "purchase_orders": re.compile(r"\bpo\b|purchase order"),
+    "payments": re.compile(r"payment"),
+}
+TOP_FINDINGS = 5
+
+
+def find_export_files(folder: Path) -> dict[str, tuple[str, bytes]]:
+    """Pick the invoice, PO and payment CSV in a folder by name. Raises InputError if one is missing or ambiguous."""
+    names = sorted((f.name for f in folder.iterdir() if f.is_file() and f.suffix.lower() == ".csv"), key=str.lower)
+    matches: dict[str, list[str]] = {kind: [] for kind in FILE_PATTERNS}
+    for name in names:
+        words = re.sub(r"[_\-]+", " ", name.lower())
+        kind = next((k for k, pattern in FILE_PATTERNS.items() if pattern.search(words)), None)
+        if kind:
+            matches[kind].append(name)
+    seen = ", ".join(names) or "no CSV files"
+    for kind, found in matches.items():
+        if not found:
+            raise InputError(f"No {kind.replace('_', ' ')} file found in {folder}. CSV files seen: {seen}. "
+                             "Name them with invoice (or purchase register), PO (or purchase order) and payment.")
+        if len(found) > 1:
+            raise InputError(f"More than one {kind.replace('_', ' ')} file found in {folder}: {', '.join(found)}. "
+                             "Keep one in the folder.")
+    return {kind: (found[0], (folder / found[0]).read_bytes()) for kind, found in matches.items()}
+
+
+def check_folder(folder: str, csv_path: str | None) -> int:
+    path = Path(folder)
+    if not path.is_dir():
+        print(f"Folder not found: {folder}", file=sys.stderr)
+        return 2
+    try:
+        result = triage_bytes(find_export_files(path))
+    except InputError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    count = len(result.exceptions)
+    print(f"invoices checked: {result.invoices_checked}")
+    print(f"exceptions found: {count}")
+    print(f"amount at risk: {format_inr(result.amount_at_risk)}")
+    print(f"across all findings: {format_inr(result.amount_at_risk_findings)}")
+    print(f"explanations cached: {cached_count(result.exceptions)}/{count}")
+    for warning in result.warnings:
+        print(f"warning: {warning}")
+    explanations = explain_all(result.exceptions, backend="offline")
+    if csv_path:
+        Path(csv_path).write_bytes(to_csv_bytes(result.exceptions, explanations))
+        print(f"report written to {csv_path}")
+    if not count:
+        print("no exceptions found")
+        return 0
+    print(f"\nLargest findings (top {min(TOP_FINDINGS, count)} of {count}):")
+    for exc in result.exceptions[:TOP_FINDINGS]:
+        label = TYPE_LABELS.get(exc.type, exc.type.replace("_", " ").capitalize())
+        print(f"  {label} | {exc.facts.get('invoice_no', '')} | {exc.facts.get('vendor', '')} | "
+              f"{format_inr(exc.amount_at_risk)} | {explanations.get(exc.id, '')}")
+    return 0
 
 
 def refresh(backend: str) -> int:
@@ -122,6 +196,8 @@ def main(argv=None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # so the rupee sign prints on any console
     args = parse_args(argv)
+    if args.check and args.dir:
+        return check_folder(args.dir, args.csv)
     if args.check:
         return check()
     if args.refresh:
