@@ -35,6 +35,14 @@ answer key: 16/16 matched, 0 extra
 
 If port 8765 is busy, pass `--port 8800` (or any free port).
 
+## Check your own exports
+Put your three CSV files in one folder. They are found by name: one containing `invoice` or `purchase register`, one containing `PO` or `purchase order`, one containing `payment`.
+```bash
+python run.py --check --dir path/to/folder
+python run.py --check --dir path/to/folder --csv report.csv
+```
+You get the same summary as `--check` without the answer key line, then the 5 largest findings. `--csv` also writes the full report. If a file is missing or two files match, it says which and exits with code 2.
+
 ## What you will see
 - A strip of totals: invoices checked, exceptions found, total amount at risk and how many are high severity.
 - A table of exceptions, biggest rupee risk first, with type, severity, invoice, vendor, PO, amount and the suggested next step.
