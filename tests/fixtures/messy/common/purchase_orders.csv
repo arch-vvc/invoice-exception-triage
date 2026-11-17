@@ -1,0 +1,4 @@
+PO#,Vendor Name,PO Date,Item Name,Quantity,Unit Price,Sub Total,Tax %,Vendor GSTIN
+PO-1,Kumar Packaging Pvt Ltd,02/04/2024,Box,100,50.00,"5,000.00",18,24AABCK4417M1ZJ
+PO-2,Kumar Packaging Pvt Ltd,03/04/2024,Carton,200,100.00,"20,000.00",18,24AABCK4417M1ZJ
+PO-3,Kumar Packaging Pvt Ltd,04/04/2024,Pallet,1,123456.00,"1,23,456.00",0,24AABCK4417M1ZJ

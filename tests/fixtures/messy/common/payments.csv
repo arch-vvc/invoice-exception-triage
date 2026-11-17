@@ -1,0 +1,4 @@
+Txn Date,Payment Voucher,Paid To,Against Bill,Amount Paid,TDS Deducted,Mode,UTR No
+30/05/2024,PV-1,Kumar Packaging Pvt Ltd,KP/001,"5,900.00",-,NEFT,HDFCR240530000001
+30/05/2024,PV-2,Kumar Packaging Pvt Ltd,KP/002,"23,600.00",-,NEFT,HDFCR240530000002
+30/05/2024,PV-3,Kumar Packaging Pvt Ltd,KP/003,"1,23,456.00",-,NEFT,HDFCR240530000003

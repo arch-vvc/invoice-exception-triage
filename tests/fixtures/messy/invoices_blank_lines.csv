@@ -1,0 +1,10 @@
+
+
+Date,Bill Number,Party Name,GSTIN/UIN,Order No,Particulars,Billed Qty,Rate,Taxable Value,GST %,Tax Amount,Invoice Amount
+
+10/04/2024,KP/001,Kumar Packaging Pvt Ltd,24AABCK4417M1ZJ,PO-1,Box,100,50.00,"5,000.00",18,900.00,"5,900.00"
+11/04/2024,KP/002,Kumar Packaging Pvt Ltd,24AABCK4417M1ZJ,PO-2,Carton,200,100.00,"20,000.00",18,"3,600.00","23,600.00"
+
+12/04/2024,KP/003,Kumar Packaging Pvt Ltd,24AABCK4417M1ZJ,PO-3,Pallet,1,123456.00,"1,23,456.00",0,0.00,"1,23,456.00"
+
+

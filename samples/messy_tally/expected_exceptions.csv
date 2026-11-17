@@ -1,0 +1,7 @@
+exception_type,invoice_no,planted_note
+duplicate_invoice,MT-0003,SYNTHETIC: same vendor and same bill as MT/0003 with a different separator.
+amount_mismatch,MT/0009,SYNTHETIC: billed 5 percent over the PO rate.
+missing_po,MT/0012,SYNTHETIC: Order No PO-9999 does not exist in the PO file.
+gst_error,MT/0015,SYNTHETIC: the last character of the GSTIN is wrong.
+partial_payment,MT/0018,SYNTHETIC: 60 percent of the invoice was paid and nothing more.
+overpayment,MT/0021,SYNTHETIC: the invoice was paid twice.

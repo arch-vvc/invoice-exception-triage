@@ -1,0 +1,26 @@
+Txn Date,Payment Voucher,Paid To,Against Bill,Amount Paid,TDS Deducted,Mode,UTR No
+03/May/24,PV-001,M/s. Kumar Packaging Pvt. Ltd.,MT/0001,"Rs. 7,080.00",-,NEFT,HDFCR2406000001
+08/May/24,PV-002,Sundaram Brake Linings Pvt Ltd,MT/0002,"Rs. 13,717.50",-,NEFT,HDFCR2406000002
+13/May/24,PV-003,Hindustan Lubricants Distributors,MT/0003,"Rs. 22,420.00",-,NEFT,HDFCR2406000003
+18/May/24,PV-004,Patel Logistics Pvt Ltd,MT/0004,"Rs. 33,187.50",-,NEFT,HDFCR2406000004
+23/May/24,PV-005,Bharat Rubber Industries,MT/0005,"Rs. 46,020.00",-,NEFT,HDFCR2406000005
+28/May/24,PV-006,Deccan Bearings & Spares,MT/0006,"Rs. 60,917.50",-,NEFT,HDFCR2406000006
+02/Jun/24,PV-007,M/s. Kumar Packaging Pvt. Ltd.,MT/0007,"Rs. 77,880.00",-,NEFT,HDFCR2406000007
+07/Jun/24,PV-008,Sundaram Brake Linings Pvt Ltd,MT/0008,"Rs. 21,535.00",-,NEFT,HDFCR2406000008
+12/Jun/24,PV-009,Hindustan Lubricants Distributors,MT/0009,"Rs. 37,170.00",-,NEFT,HDFCR2406000009
+17/Jun/24,PV-010,Patel Logistics Pvt Ltd,MT/0010,"Rs. 14,160.00",-,NEFT,HDFCR2406000010
+22/Jun/24,PV-011,Bharat Rubber Industries,MT/0011,"Rs. 22,862.50",-,NEFT,HDFCR2406000011
+27/Jun/24,PV-012,Deccan Bearings & Spares,MT/0012,"Rs. 33,630.00",-,NEFT,HDFCR2406000012
+02/Jul/24,PV-013,M/s. Kumar Packaging Pvt. Ltd.,MT/0013,"Rs. 46,462.50",-,NEFT,HDFCR2406000013
+07/Jul/24,PV-014,Sundaram Brake Linings Pvt Ltd,MT/0014,"Rs. 61,360.00",-,NEFT,HDFCR2406000014
+12/Jul/24,PV-015,Hindustan Lubricants Distributors,MT/0015,"Rs. 17,405.00",-,NEFT,HDFCR2406000015
+17/Jul/24,PV-016,Patel Logistics Pvt Ltd,MT/0016,"Rs. 29,205.00",-,NEFT,HDFCR2406000016
+22/Jul/24,PV-017,Bharat Rubber Industries,MT/0017,"Rs. 43,070.00",-,NEFT,HDFCR2406000017
+27/Jul/24,PV-018,Deccan Bearings & Spares,MT/0018,"Rs. 35,400.00",-,NEFT,HDFCR2406000018
+01/Aug/24,PV-019,M/s. Kumar Packaging Pvt. Ltd.,MT/0019,"Rs. 21,240.00",-,NEFT,HDFCR2406000019
+06/Aug/24,PV-020,Sundaram Brake Linings Pvt Ltd,MT/0020,"Rs. 32,007.50",-,NEFT,HDFCR2406000020
+11/Aug/24,PV-021,Hindustan Lubricants Distributors,MT/0021,"Rs. 44,840.00",-,NEFT,HDFCR2406000021
+14/Aug/24,PV-099,Hindustan Lubricants Distributors,MT/0021,"Rs. 44,840.00",-,NEFT,HDFCR2406000099
+16/Aug/24,PV-022,Patel Logistics Pvt Ltd,MT/0022,"Rs. 13,275.00",-,NEFT,HDFCR2406000022
+21/Aug/24,PV-023,Bharat Rubber Industries,MT/0023,"Rs. 23,010.00",-,NEFT,HDFCR2406000023
+26/Aug/24,PV-024,Deccan Bearings & Spares,MT/0024,"Rs. 34,810.00",-,NEFT,HDFCR2406000024

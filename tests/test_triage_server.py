@@ -333,8 +333,8 @@ def test_bad_files_give_a_friendly_400_with_no_traceback(client, label, data):
     assert "invoices.csv" in message
 
 
-def test_the_cp1252_error_tells_the_user_how_to_fix_it(client):
-    status, body = client.upload("payments", "Paid To\n\xa3\n".encode("cp1252"))
+def test_the_bad_encoding_error_tells_the_user_how_to_fix_it(client):
+    status, body = client.upload("payments", b"Paid To\n\x81\n")
     assert status == 400
     assert "UTF-8" in body["error"]
 
