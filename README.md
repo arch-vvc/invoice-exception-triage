@@ -41,7 +41,9 @@ Put your three CSV files in one folder. They are found by name: one containing `
 python run.py --check --dir path/to/folder
 python run.py --check --dir path/to/folder --csv report.csv
 ```
-You get the same summary as `--check` without the answer key line, then the 5 largest findings. `--csv` also writes the full report. If a file is missing or two files match, it says which and exits with code 2.
+You get the same summary as `--check` without the answer key line, then the 5 largest findings. `--csv` also writes the full report. If a file is missing or two files match, it says which and exits with code 2. If a file cannot be read, it prints the columns it found and the columns it needed, and exits with code 2, never a traceback.
+
+The messy variants it is tested against (header aliases, `dd-mm-yyyy` and `10/Apr/24` dates, rupee signs and Indian digit grouping, a BOM, cp1252 files, blank lines, a trailing Grand Total row) are written from general knowledge of Tally style exports and are not from a real export. They live in `tests/fixtures/messy/`.
 
 ## What you will see
 - A strip of totals: invoices checked, exceptions found, total amount at risk and how many are high severity.
@@ -107,7 +109,7 @@ No test touches the network or starts a model.
 ## Limits
 - One line item per invoice and per PO. Real multi line invoices are out of scope.
 - Dates are read day-first, so `03/04/2024` is 3 April.
-- CSV only, not xlsx. In Excel use Save As, CSV UTF-8. UTF-8 and UTF-16 files are accepted, other encodings get a clear error.
+- CSV only, not xlsx. In Excel use Save As, CSV UTF-8. UTF-8, UTF-16 and Windows cp1252 files are accepted, other encodings get a clear error.
 - Files over 5 MB are refused.
 - Single user, local only. There is no login.
 - The three way match is PO, invoice and payment. There is no goods receipt file, so quantity is checked against the PO only.

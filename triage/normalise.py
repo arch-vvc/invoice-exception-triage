@@ -52,6 +52,7 @@ def parse_amount(text: str, warnings: Warnings = None) -> float | None:
 
 _DATE_FORMATS = (
     "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%b-%Y", "%d-%b-%y",
+    "%d/%b/%Y", "%d/%b/%y",
     "%d %b %Y", "%d %B %Y", "%Y-%m-%d",
 )
 _EXCEL_EPOCH = date(1899, 12, 30)

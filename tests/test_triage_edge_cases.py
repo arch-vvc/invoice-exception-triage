@@ -143,14 +143,21 @@ def test_no_recognisable_header_at_all(entry):
 
 @pytest.mark.parametrize("entry", ENTRY_POINTS)
 @pytest.mark.parametrize("encoding, vendor", [
-    ("cp1252", "Sundaram – Brake Linings Pvt Ltd"),
-    ("cp1252", "Café Packaging Pvt Ltd"),
-    ("latin-1", "Café Packaging Pvt Ltd"),
+    ("cp1252", "Sundaram \u2013 Brake Linings Pvt Ltd"),
+    ("cp1252", "Caf\u00e9 Packaging Pvt Ltd"),
+    ("latin-1", "Caf\u00e9 Packaging Pvt Ltd"),
 ])
-def test_wrong_encoding(entry, encoding, vendor):
+def test_cp1252_and_latin1_exports_are_read(entry, encoding, vendor):
+    """Excel's plain CSV save on Windows is cp1252, so it is read rather than refused (changed in phase 2)."""
     text = INVOICE_TEXT.replace("Sundaram Brake Linings Pvt Ltd", vendor, 1)
     assert text != INVOICE_TEXT
     data = text.replace("\u20b9", "Rs ").encode(encoding)  # the sample's rupee sign has no cp1252 or latin-1 byte
+    assert entry("invoices", data) is not None
+
+
+@pytest.mark.parametrize("entry", ENTRY_POINTS)
+def test_bytes_that_are_neither_utf8_nor_cp1252_are_refused(entry):
+    data = INVOICE_TEXT.encode().replace(b"Sundaram", b"Sund\x81ram", 1)  # 0x81 is undefined in cp1252
     with pytest.raises(InputError) as caught:
         entry("invoices", data)
     assert_friendly(caught.value, "invoices.csv")

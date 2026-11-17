@@ -387,8 +387,8 @@ def test_unrelated_file_gives_missing_column_error():
         load_table(csv_bytes("Name,Age", "Asha,30"), "invoices", "invoices.csv")
 
 
-def test_cp1252_bytes_are_not_utf8():
-    data = INVOICE_HEADER.encode() + b"\n03/04/2024,INV-1,Acme \x96 Sons,,,,1,1,1,0,,1\x92\n"
+def test_bytes_undefined_in_cp1252_are_not_text():
+    data = INVOICE_HEADER.encode() + b"\n03/04/2024,INV-1,Acme \x81 Sons,,,,1,1,1,0,,1\x8d\n"
     with pytest.raises(InputError) as caught:
         load_table(data, "invoices", "invoices.csv")
     assert "not UTF-8" in str(caught.value) and "CSV UTF-8" in str(caught.value)

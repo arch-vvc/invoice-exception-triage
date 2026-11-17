@@ -39,7 +39,8 @@ SCHEMAS: dict[str, tuple[Field, ...]] = {
         _f("taxable_value", "taxable value", True, "Taxable Value", "Taxable Amt", "Assessable Value", "Sub Total"),
         _f("gst_rate", "GST rate", True, "GST %", "GST Rate", "Tax Rate", "Tax %"),
         _f("gst_amount", "GST amount", False, "Tax Amount", "GST Amount", "Total Tax"),
-        _f("total", "invoice total", True, "Invoice Amount", "Total", "Grand Total", "Bill Amount", "Invoice Total"),
+        _f("total", "invoice total", True, "Invoice Amount", "Total", "Grand Total", "Bill Amount", "Invoice Total",
+           "Gross Total"),
     ),
     "purchase_orders": (
         _f("po_no", "PO number", True, "PO#", "PO Number", "PO No", "Purchase Order Number", "Order Number",
@@ -104,7 +105,10 @@ def _decode(data: bytes, filename: str) -> str:
     try:
         text = data.decode(encoding)
     except UnicodeDecodeError:
-        text = "\x00"  # same message as any other binary junk
+        try:
+            text = data.decode("cp1252")  # Excel's plain "CSV" save on Windows
+        except UnicodeDecodeError:
+            text = "\x00"  # same message as any other binary junk
     if "\x00" in text:
         raise InputError(f"{filename} is not UTF-8 text. {EXCEL_HINT}")
     text = text.lstrip("\ufeff")  # a second BOM, which some exporters write after the first
