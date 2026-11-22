@@ -92,7 +92,10 @@ main.wrap { padding-top: 0; padding-bottom: 96px; }
 #sample-table table.mini { font-size: 12.5px; }
 #sample-table .mini th { position: sticky; top: 0; z-index: 1; text-align: center; }
 #sample-table .mini th.rn { z-index: 3; left: 0; }
-#sample-table .mini td.heading { color: var(--muted); font-style: normal; }
+/* A heading or footer line sits in column A but is drawn over the cells beside it, so it never widens column A. */
+#sample-table .mini td.heading { position: relative; color: var(--muted); }
+#sample-table .mini td.heading::before { content: "\00a0"; }
+#sample-table .mini td.heading span { position: absolute; left: 8px; top: 8px; }
 .sample-total { margin-top: 10px; color: var(--muted); font-size: 13px; }
 
 /* loading */
@@ -239,6 +242,7 @@ p.none-note { font-size: 14px; }
   .brand { flex: 1 1 100%; }
   h1 { font-size: 18px; }
   .chips { flex-wrap: nowrap; overflow-x: auto; }
+  #sample-tabs { flex-wrap: wrap; column-gap: 20px; overflow-x: visible; }
   .legend h2 { display: none; }
   .legend ul { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .legend li, .legend li:last-child { border: 0; padding: 2px 0; }
@@ -623,7 +627,13 @@ function renderSampleTable() {
     for (let i = 0; i < file.width; i++) {
       const value = cells[i];
       // A line with a single cell is a heading or footer line, not a record.
-      tr.append(el("td", cells.length === 1 ? "heading" : (value ? "" : "blank"), value || (cells.length === 1 ? "" : "blank")));
+      if (cells.length === 1) {
+        const td = el("td", "heading");
+        if (i === 0) td.append(el("span", null, value));
+        tr.append(td);
+      } else {
+        tr.append(el("td", value ? null : "blank", value || "blank"));
+      }
     }
     body.append(tr);
   });
