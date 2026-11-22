@@ -6,7 +6,7 @@ Drop in three exports from Tally or Zoho Books (invoices, purchase orders, payme
 
 *The results page for the sample data: totals at the top, then every exception with its rupees at risk.*
 
-![The detail drawer for invoice GAC-118 showing the exact source rows](screenshots/drawer2-GAC-118-1440.png)
+![The detail drawer for invoice GAC-118 showing the exact source rows](screenshots/drawer-GAC-118-1440.png)
 
 *Click a row to see the exact invoice, PO and payment rows behind it, with the proving cells tinted.*
 

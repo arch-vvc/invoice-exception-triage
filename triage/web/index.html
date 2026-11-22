@@ -5,216 +5,271 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Invoice exception triage</title>
 <style>
+/* The tick sheet. Paper, ink and one pen red. Red means one thing here: the numbers disagree. */
 :root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --border: #e1e4ea;
-  --border-strong: #c9ced8;
-  --text: #1a1f29;
-  --muted: #566070;
-  --accent: #2b44c8;
-  --accent-dark: #2236a3;
-  --accent-soft: #eaeefc;
-  --high-bg: #fdeaea;  --high-fg: #a11d1d;  --high-dot: #d93636;
-  --med-bg: #fff1d6;   --med-fg: #7f4300;   --med-dot: #e08a00;
-  --low-bg: #e8edf7;   --low-fg: #3a4f78;   --low-dot: #6f86b3;
-  --ok: #17703f;
-  --flag-bg: #ffd666;  --flag-fg: #3d2400;  --flag-edge: #d98200;
-  --radius: 10px;
-  --shadow: 0 1px 2px rgba(20, 28, 45, .06), 0 1px 1px rgba(20, 28, 45, .04);
+  --paper: #f6f3ec;
+  --sheet: #fcfbf8;
+  --ink: #16181d;
+  --muted: #5b606b;
+  --rule: #dcd6c8;
+  --rule-strong: #b7b09f;
+  --pen: #bf2f19;
+  --wash: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  --flag-bg: color-mix(in srgb, var(--pen) 17%, var(--sheet));
+  --display: "Iowan Old Style", Charter, "Sitka Text", "Palatino Linotype", Georgia, serif;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 var(--font); }
 button { font: inherit; color: inherit; }
-:focus-visible { outline: 3px solid #8fa0f0; outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
-.wrap { max-width: 1360px; margin: 0 auto; padding: 0 32px; }
-.topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
-.topbar .wrap { display: flex; align-items: center; gap: 12px; height: 60px; }
-h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
-.tag { font-size: 12px; font-weight: 600; color: var(--low-fg); background: var(--low-bg); border-radius: 999px; padding: 2px 10px; }
+.wrap { max-width: 1360px; margin: 0 auto; padding: 0 40px; }
+.topbar { border-bottom: 1px solid var(--rule); }
+.topbar .wrap { display: flex; align-items: center; gap: 14px; height: 68px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; gap: 3px; }
+h1 { margin: 0; font: 600 20px/1 var(--display); letter-spacing: -.005em; }
+.tag { font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--rule-strong); border-radius: 999px; padding: 2px 11px; }
 .spacer { flex: 1; }
-main.wrap { padding-top: 32px; padding-bottom: 72px; }
+main.wrap { padding-top: 0; padding-bottom: 96px; }
+
+/* the marks: tick agrees, red square disagrees, dashed square means nothing is linked */
+.mk { width: 16px; height: 16px; display: block; flex: none; }
+.mk rect, .mk path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mk-ok { color: var(--ink); }
+.mk-bad { color: var(--pen); }
+.mk-bad rect { fill: currentColor; }
+.mk-bad path { stroke: var(--sheet); stroke-width: 1.9; }
+.mk-none { color: var(--muted); }
+.mk-none rect { stroke-dasharray: 2.4 2.2; }
 
 /* buttons */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px;
-  font-weight: 600; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface);
-  cursor: pointer; text-decoration: none; color: var(--text); }
-.btn:hover { background: #f1f3f7; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
-.btn.big { min-height: 48px; padding: 0 26px; font-size: 15px; }
-.btn[disabled] { background: #e9ebf0; border-color: #e9ebf0; color: #6b7482; cursor: not-allowed; }
-.btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }
-.btn.quiet:hover { background: #eceff4; color: var(--text); }
+  font-weight: 600; border-radius: 6px; border: 1px solid var(--ink); background: transparent; color: var(--ink);
+  cursor: pointer; text-decoration: none; transition: background .12s; }
+.btn:hover { background: var(--wash); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover { background: color-mix(in srgb, var(--ink) 82%, var(--paper)); }
+.btn.big { min-height: 52px; padding: 0 28px; font-size: 15px; }
+.btn[disabled] { border-color: var(--rule-strong); background: transparent; color: var(--muted); cursor: not-allowed; opacity: .75; transform: none; }
+.btn.quiet { border-color: transparent; color: var(--muted); }
+.btn.quiet:hover { color: var(--ink); }
 
 /* start */
-.intro { padding-top: 16px; }
-.intro h2 { margin: 0 0 8px; font-size: 32px; line-height: 1.15; letter-spacing: -.025em; }
-.intro p { margin: 0 0 32px; color: var(--muted); font-size: 16px; max-width: 66ch; text-wrap: balance; }
-.zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.zone { background: var(--surface); border: 2px dashed var(--border-strong); border-radius: 12px; padding: 32px 20px 24px;
-  min-height: 210px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center;
-  gap: 4px; cursor: pointer; transition: border-color .15s, background .15s; }
-.zone:hover, .zone.is-over { border-color: var(--accent); background: #f8f9fe; }
-.zone .glyph { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
-  display: grid; place-items: center; font-size: 22px; font-weight: 600; margin-bottom: 8px; }
-.zone .zone-title { font-size: 16px; font-weight: 650; }
+.start { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 80px; align-items: start; padding-top: 72px; }
+.intro h2 { margin: 0 0 20px; font: 400 52px/1.04 var(--display); letter-spacing: -.02em; text-wrap: balance; }
+.intro p { margin: 0 0 32px; color: var(--muted); font-size: 16px; max-width: 44ch; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.zones { border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--sheet); overflow: hidden; }
+.zone { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(0, auto); align-items: center; gap: 4px 20px;
+  padding: 24px 26px; border-top: 1px solid var(--rule); cursor: pointer; transition: background .12s; }
+.zone:first-child { border-top: 0; }
+.zone:hover { background: var(--wash); }
+.zone.is-over { background: var(--wash); box-shadow: inset 0 0 0 2px var(--ink); }
+.zone .glyph .mk { width: 22px; height: 22px; }
+.zone .zone-title { font-size: 17px; font-weight: 650; line-height: 1.3; }
 .zone .zone-hint { color: var(--muted); font-size: 13px; }
-.zone .zone-status { margin-top: 10px; font-size: 13px; color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
-.zone.is-ok { border-style: solid; border-color: #9fd2b5; background: #f6fbf8; }
-.zone.is-ok .glyph { background: #dcf1e5; color: var(--ok); }
-.zone.is-ok .zone-status { color: var(--text); }
+.zone .zone-status { color: var(--muted); font-size: 13px; text-align: right; max-width: 270px; overflow-wrap: anywhere; }
+.zone.is-ok .zone-status { color: var(--ink); }
 .zone.is-ok .fname { font-weight: 650; }
-.zone.is-error { border-style: solid; border-color: #e3a1a1; background: #fffafa; }
-.zone.is-error .glyph { background: var(--high-bg); color: var(--high-fg); }
-.zone.is-error .zone-status { color: var(--high-fg); text-wrap: balance; }
-.zone.is-busy { opacity: .7; cursor: progress; }
-.actions { display: flex; align-items: center; gap: 16px; margin-top: 24px; }
-.actions .or { color: var(--muted); }
+.zone.is-error .zone-status { color: var(--pen); text-wrap: balance; }
+.zone.is-busy { opacity: .65; cursor: progress; }
+.zones.fixed .zone, .zones.fixed .zone:hover { cursor: default; background: transparent; }
+.zone .fname a { color: var(--ink); text-underline-offset: 3px; }
+.static-note { margin: 20px 0 0; color: var(--muted); font-size: 13px; max-width: 44ch; }
 
 /* loading */
-.loading-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--border-strong); border-top-color: var(--accent);
-  animation: spin .8s linear infinite; flex: none; }
-.loading-head strong { font-size: 16px; }
-.loading-head span.sub { color: var(--muted); }
-.skel { background: linear-gradient(90deg, #e9ecf1 25%, #f3f5f8 50%, #e9ecf1 75%); background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite; border-radius: 6px; }
-.skel-cards { display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-.skel-card { height: 128px; border-radius: var(--radius); }
-.skel-table { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 16px; }
-.skel-row { height: 18px; margin: 20px 0; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes shimmer { to { background-position: -200% 0; } }
+.loading { padding-top: 96px; max-width: 560px; }
+.ticking { display: flex; gap: 10px; margin-bottom: 24px; }
+.tick-cell { position: relative; width: 30px; height: 30px; }
+.tick-cell .mk { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tick-cell .mk-ok { opacity: 0; animation: tickin 1.8s ease-in-out infinite; }
+.tick-cell:nth-child(2) .mk-ok { animation-delay: .3s; }
+.tick-cell:nth-child(3) .mk-ok { animation-delay: .6s; }
+@keyframes tickin { 0%, 12% { opacity: 0; } 30%, 78% { opacity: 1; } 100% { opacity: 0; } }
+.loading strong { display: block; font: 400 28px/1.15 var(--display); letter-spacing: -.01em; margin-bottom: 8px; }
+.loading p { margin: 0; color: var(--muted); font-size: 16px; }
 @media (prefers-reduced-motion: reduce) {
-  .spinner, .skel { animation: none; }
-  .zone, .drawer { transition: none !important; }
+  .tick-cell .mk-ok { animation: none; opacity: 1; }
+  .zone, .drawer, .btn { transition: none !important; }
 }
 
 /* error */
-.error-box { max-width: 640px; margin: 48px auto; background: var(--surface); border: 1px solid #e3a1a1; border-left: 6px solid var(--high-dot);
-  border-radius: var(--radius); padding: 28px 32px; box-shadow: var(--shadow); }
-.error-box h2 { margin: 0 0 8px; font-size: 20px; }
-.error-box p { margin: 0 0 20px; font-size: 15px; overflow-wrap: anywhere; }
+.error-box { max-width: 620px; margin-top: 88px; border-left: 3px solid var(--pen); padding: 2px 0 2px 28px; }
+.error-box h2 { margin: 0 0 8px; font: 400 30px/1.15 var(--display); letter-spacing: -.01em; }
+.error-box p { margin: 0 0 24px; font-size: 16px; overflow-wrap: anywhere; }
 
-/* results */
-.stats { display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
-.stat .label { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.stat .value { font-size: 32px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.stat .sub { margin-top: 6px; font-size: 13px; color: var(--muted); min-height: 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.stat.risk { border-top: 4px solid var(--high-dot); padding: 20px 28px 22px; }
-.stat.risk .label { color: var(--high-fg); font-size: 13px; }
-.stat.risk .value { font-size: 64px; line-height: 1.05; letter-spacing: -.035em; color: var(--high-fg); margin-top: 6px; }
-.stat.risk .sub { font-size: 15px; color: var(--text); margin-top: 10px; }
-.stat .sub small.across { flex-basis: 100%; font-size: 12px; color: var(--muted); }
-.notice { background: #fff8e6; border: 1px solid #f0d58a; color: #5c3c00; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+/* results: the headline is the closing total, underlined with a double rule like a ledger */
+.headline { display: grid; grid-template-columns: minmax(0, auto) 280px; justify-content: start; column-gap: 112px; align-items: end; padding: 56px 0 44px; }
+.headline .label { font-size: 12px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.figure-wrap { margin: 10px 0 20px; }
+.figure { display: inline-block; font: 600 104px/1 var(--font); letter-spacing: -.045em; color: var(--pen);
+  font-variant-numeric: tabular-nums lining-nums; padding-bottom: 8px; border-bottom: 6px double var(--pen); }
+.headline .verdict { margin: 0; font: 400 24px/1.35 var(--display); letter-spacing: -.005em; max-width: 34ch; text-wrap: balance; }
+.headline .across { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.legend h2 { margin: 0 0 12px; font-size: 12px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.legend ul { list-style: none; margin: 0; padding: 0; }
+.legend li { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: 13px; }
+.legend li:last-child { border-bottom: 1px solid var(--rule); }
+.notice { margin: 0 0 24px; border-left: 3px solid var(--rule-strong); padding: 2px 0 2px 16px; color: var(--muted); font-size: 13px; }
+.notice strong { color: var(--ink); }
 .notice ul { margin: 4px 0 0; padding-left: 18px; }
-.toolbar { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
-.chip { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 13px; white-space: nowrap;
-  font-weight: 550; cursor: pointer; color: var(--text); }
-.chip:hover { background: #f1f3f7; }
-.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.chip .n { margin-left: 5px; opacity: .75; font-variant-numeric: tabular-nums; }
-.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
-table.exc { width: 100%; min-width: 1120px; border-collapse: collapse; table-layout: fixed; }
-.exc th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
-  padding: 11px 14px; border-bottom: 1px solid var(--border); background: #fafbfc; line-height: 1.3; }
-.exc td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; overflow-wrap: anywhere; }
-.exc tbody tr:last-child td { border-bottom: 0; }
-.exc tbody tr { cursor: pointer; }
-.exc tbody tr:hover { background: #f5f7fc; }
-.exc tbody tr.selected { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
-.exc .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.exc td.num { font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+
+.chips { display: flex; flex-wrap: wrap; column-gap: 28px; border-bottom: 1px solid var(--rule); }
+.chip { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 12px 0; font-weight: 600;
+  color: var(--muted); cursor: pointer; white-space: nowrap; }
+.chip:hover { color: var(--ink); }
+.chip[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.chip .n { margin-left: 7px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.table-wrap { overflow-x: auto; }
+table.exc { width: 100%; min-width: 1100px; border-collapse: collapse; table-layout: fixed; }
+.exc th { text-align: left; font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+  padding: 18px 16px 10px; border-bottom: 1px solid var(--ink); vertical-align: bottom; line-height: 1.3; }
+.exc td { padding: 20px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 13px; overflow-wrap: anywhere; }
+.exc tbody tr { cursor: pointer; transition: background .1s; }
+.exc tbody tr:hover { background: var(--wash); }
+.exc tbody tr.selected { background: var(--wash); }
+.exc tbody tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
+.exc .num { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.exc td.num { font-weight: 650; font-size: 19px; letter-spacing: -.015em; line-height: 1.3; }
 .exc td.zero { color: var(--muted); font-weight: 500; }
 .exc .mono { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
-.exc td.why { font-size: 15px; line-height: 1.45; color: var(--text); }
+.exc td.why { font-size: 15px; line-height: 1.5; }
 .exc td.act { color: var(--muted); }
-.exc .kind { margin-top: 6px; font-weight: 600; }
+.exc .kind { margin-top: 7px; font-weight: 600; font-size: 14px; }
 .exc .inv { font-weight: 600; }
 .exc .vend { margin-top: 3px; color: var(--muted); }
-.col-amt { width: 160px; } .col-kind { width: 156px; } .col-inv { width: 200px; } .col-why { width: auto; } .col-act { width: 230px; }
+.col-amt { width: 156px; } .col-marks { width: 112px; } .col-kind { width: 156px; } .col-inv { width: 196px; } .col-why { width: auto; } .col-act { width: 214px; }
+.marks-box { display: flex; }
+.marks-box .m { width: 48px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.exc th .marks-box .m { text-align: center; display: block; }
+.exc td .marks-box { padding-top: 2px; }
+.ml { display: none; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .wrap-text { overflow-wrap: anywhere; }
 .muted { color: var(--muted); }
-.empty { padding: 40px; text-align: center; color: var(--muted); }
+.empty { padding: 64px 0; color: var(--muted); font-size: 16px; }
+.table-note { margin-top: 14px; }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; text-transform: capitalize; white-space: nowrap; }
-.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pill.high { background: var(--high-bg); color: var(--high-fg); }
-.pill.high::before { background: var(--high-dot); }
-.pill.medium { background: var(--med-bg); color: var(--med-fg); }
-.pill.medium::before { background: var(--med-dot); }
-.pill.low { background: var(--low-bg); color: var(--low-fg); }
-.pill.low::before { background: var(--low-dot); }
+.sev { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; }
+.bars i { width: 3px; border-radius: 1px; background: var(--rule-strong); }
+.bars i:nth-child(1) { height: 5px; } .bars i:nth-child(2) { height: 8px; } .bars i:nth-child(3) { height: 11px; }
+.bars i.on { background: var(--ink); }
 
 /* drawer */
-.scrim { position: fixed; inset: 0; background: rgba(20, 26, 40, .35); z-index: 10; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(1000px, 96vw); background: var(--surface); z-index: 11;
+.scrim { position: fixed; inset: 0; background: rgba(22, 24, 29, .38); z-index: 10; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(1000px, 100vw); background: var(--sheet); z-index: 11;
   display: flex; flex-direction: column; transform: translateX(100%); visibility: hidden;
   transition: transform .18s ease-out, visibility 0s linear .18s; }
-.drawer.open { transform: none; visibility: visible; box-shadow: -8px 0 32px rgba(20, 26, 40, .18); transition: transform .18s ease-out; }
-.drawer-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: flex-start; }
+.drawer.open { transform: none; visibility: visible; box-shadow: -10px 0 40px rgba(22, 24, 29, .2); transition: transform .18s ease-out; }
+.drawer-head { padding: 24px 28px 20px; display: flex; gap: 20px; align-items: flex-start; }
 .drawer-head .titles { flex: 1; min-width: 0; }
-.drawer-head .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
-.drawer-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.drawer-head .vendor { color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.drawer-head .eyebrow { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.drawer-head h2 { margin: 0; font: 400 34px/1.1 var(--display); letter-spacing: -.015em; overflow-wrap: anywhere; }
+.drawer-head .vendor { color: var(--muted); margin-top: 4px; font-size: 15px; overflow-wrap: anywhere; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 16px; font-size: 13px; }
+.checks > span { display: inline-flex; align-items: center; gap: 8px; }
 .drawer-head .amount { text-align: right; flex: none; }
-.drawer-head .amount .label { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.drawer-head .amount .value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.close { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; font-size: 20px; line-height: 1; }
-.close:hover { background: #f1f3f7; }
-.drawer-body { padding: 8px 24px 32px; overflow-y: auto; flex: 1; }
-.drawer-body h3 { margin: 22px 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.drawer-head .amount .label { font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.drawer-head .amount .value { font-size: 30px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums lining-nums; color: var(--pen); }
+.close { flex: none; width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--rule-strong); background: transparent; cursor: pointer; font-size: 22px; line-height: 1; }
+.close:hover { background: var(--wash); border-color: var(--ink); }
+.drawer-nav { display: flex; align-items: center; gap: 8px; padding: 8px 28px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--muted); }
+.step { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; font-weight: 600; cursor: pointer; }
+.step:hover { background: var(--wash); border-color: var(--rule-strong); }
+.step[aria-disabled="true"] { color: var(--rule-strong); cursor: default; }
+.step[aria-disabled="true"]:hover { background: transparent; border-color: transparent; }
+kbd { font: 600 11px/1 var(--mono); border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: 4px; padding: 3px 6px; background: var(--paper); color: var(--ink); }
+.drawer-body { padding: 4px 28px 40px; overflow-y: auto; flex: 1; }
+.drawer-body h3 { margin: 28px 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
 .drawer-body p { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
-.drawer-body p.lead { font-size: 18px; line-height: 1.5; letter-spacing: -.005em; border-left: 3px solid var(--high-dot); padding-left: 16px; }
-.drawer-body p.todo { background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; font-weight: 550; }
+.drawer-body p.lead { font: 400 24px/1.4 var(--display); letter-spacing: -.005em; max-width: 52ch; }
+.drawer-body p.todo { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 14px 0; font-weight: 600; }
 .drawer-body .sub-h { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.rowgroup { margin-top: 16px; }
-.rowgroup .cap { font-size: 13px; font-weight: 650; margin-bottom: 6px; }
+.rowgroup { margin-top: 20px; }
+.rowgroup .cap { font-size: 13px; font-weight: 650; margin-bottom: 8px; }
 .rowgroup .cap .where { color: var(--muted); font-weight: 500; }
 .mini-scroll { position: relative; }
-.mini-scroll::before, .mini-scroll::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 26px; pointer-events: none;
+.mini-scroll::before, .mini-scroll::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 28px; pointer-events: none;
   opacity: 0; transition: opacity .12s; z-index: 2; }
-.mini-scroll::before { left: 1px; background: linear-gradient(to right, rgba(20, 28, 45, .18), rgba(20, 28, 45, 0)); border-radius: 8px 0 0 8px; }
-.mini-scroll::after { right: 1px; background: linear-gradient(to left, rgba(20, 28, 45, .18), rgba(20, 28, 45, 0)); border-radius: 0 8px 8px 0; }
+.mini-scroll::before { left: 1px; background: linear-gradient(to right, rgba(22, 24, 29, .16), rgba(22, 24, 29, 0)); border-radius: 6px 0 0 6px; }
+.mini-scroll::after { right: 1px; background: linear-gradient(to left, rgba(22, 24, 29, .16), rgba(22, 24, 29, 0)); border-radius: 0 6px 6px 0; }
 .mini-scroll.more-left::before, .mini-scroll.more-right::after { opacity: 1; }
-.mini-wrap { border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
-.scroll-cue { margin-top: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.mini-wrap { border: 1px solid var(--rule-strong); border-radius: 6px; overflow-x: auto; }
+.scroll-cue { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
 table.mini { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12.5px; }
-.mini th { text-align: left; font-weight: 650; color: var(--muted); background: #fafbfc; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.mini td { padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mini th { text-align: left; font-weight: 650; color: var(--muted); background: var(--wash); padding: 8px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; }
+.mini td { padding: 8px; border-bottom: 1px solid var(--rule); white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
 .mini tr:last-child td { border-bottom: 0; }
-.mini .rn { position: sticky; left: 0; background: #fafbfc; font-weight: 650; border-right: 1px solid var(--border); }
-.mini td.blank { color: #8a93a2; }
+.mini .rn { position: sticky; left: 0; background: var(--wash); font-weight: 650; border-right: 1px solid var(--rule-strong); color: var(--ink); }
+.mini td.blank { color: var(--muted); font-size: 11.5px; letter-spacing: .02em; }
 .mini th.amt, .mini td.amt { text-align: right; }
-.mini td.flag { background: var(--flag-bg); color: var(--flag-fg); font-weight: 700; box-shadow: inset 0 0 0 2px var(--flag-edge); }
-.mini th.flag { background: var(--flag-bg); color: var(--flag-fg); box-shadow: inset 0 -3px 0 var(--flag-edge); }
-.rowtag { display: block; margin-top: 2px; font-size: 11px; font-weight: 650; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
-.key { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--flag-bg); box-shadow: inset 0 0 0 2px var(--flag-edge); vertical-align: -2px; margin-right: 4px; }
-.note { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
+.mini td.flag { background: var(--flag-bg); color: var(--ink); font-weight: 700; box-shadow: inset 0 0 0 2px var(--pen); }
+.mini th.flag { background: var(--flag-bg); color: var(--ink); box-shadow: inset 0 -3px 0 var(--pen); }
+.rowtag { display: block; margin-top: 2px; font-size: 11px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.rowtag.dup { color: var(--pen); }
+.key { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--flag-bg); box-shadow: inset 0 0 0 2px var(--pen); vertical-align: -2px; margin-right: 6px; }
+.note { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
 .none-note { color: var(--muted); font-size: 13px; }
 p.none-note { font-size: 14px; }
 
 @media (max-width: 900px) {
-  .wrap { padding: 0 16px; }
-  .zones, .stats, .skel-cards { grid-template-columns: 1fr; }
-  .stat.risk .value { font-size: 44px; }
-  .actions { flex-wrap: wrap; }
-  .toolbar { flex-wrap: wrap; }
+  .wrap { padding: 0 20px; }
+  .topbar .wrap { height: auto; flex-wrap: wrap; padding-top: 14px; padding-bottom: 14px; row-gap: 10px; }
+  .topbar .spacer { display: none; }
+  .brand { flex: 1 1 100%; }
+  h1 { font-size: 18px; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; }
+  .legend h2 { display: none; }
+  .legend ul { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+  .legend li, .legend li:last-child { border: 0; padding: 2px 0; }
+  .start { grid-template-columns: 1fr; gap: 36px; padding-top: 40px; }
+  .intro h2 { font-size: 38px; }
+  .headline { grid-template-columns: 1fr; gap: 32px; padding: 36px 0 32px; }
+  .figure { font-size: 60px; border-bottom-width: 5px; }
+  .headline .verdict { font-size: 20px; }
+  .zone { grid-template-columns: 24px minmax(0, 1fr); padding: 20px; }
+  .zone .zone-status { grid-column: 2; text-align: left; max-width: none; }
+  .drawer-head { padding: 20px 20px 16px; flex-wrap: wrap; }
+  .drawer-head h2 { font-size: 28px; }
+  .drawer-head .amount { order: 3; flex-basis: 100%; text-align: left; }
+  .drawer-nav, .drawer-body { padding-left: 20px; padding-right: 20px; }
+  .drawer-nav kbd { display: none; }
+}
+@media (max-width: 760px) {
+  table.exc, .exc tbody { display: block; min-width: 0; }
+  .exc thead { display: none; }
+  .exc tr { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; padding: 18px 0; border-bottom: 1px solid var(--rule); }
+  .exc td { display: block; padding: 0; border: 0; }
+  .exc td.num { grid-column: 1; grid-row: 1; text-align: left; }
+  .exc td.marks { grid-column: 2; grid-row: 1; }
+  .exc td.kindc, .exc td.who, .exc td.why, .exc td.act { grid-column: 1 / -1; }
+  .exc tbody tr.selected td:first-child { box-shadow: none; }
+  .exc tbody tr.selected { box-shadow: inset 3px 0 0 var(--ink); padding-left: 12px; }
+  .marks-box .m { width: 44px; }
+  .ml { display: block; }
+  .actions .btn { flex: 1 1 auto; }
 }
 </style>
 </head>
 <body>
+<template id="t-ok"><svg class="mk mk-ok" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="1" y="1" width="14" height="14" rx="2.5"/><path d="M4.6 8.4l2.3 2.3 4.5-5.2"/></svg></template>
+<template id="t-bad"><svg class="mk mk-bad" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="0.8" y="0.8" width="14.4" height="14.4" rx="3"/><path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6"/></svg></template>
+<template id="t-none"><svg class="mk mk-none" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="1" y="1" width="14" height="14" rx="2.5"/></svg></template>
+
 <header class="topbar">
   <div class="wrap">
-    <h1>Invoice exception triage</h1>
+    <div class="brand">
+      <span class="logo" id="logo" aria-hidden="true"></span>
+      <h1>Invoice exception triage</h1>
+    </div>
     <span class="tag" id="sample-tag" hidden>Synthetic demo data</span>
     <span class="spacer"></span>
     <button class="btn quiet" id="restart" type="button" hidden>Start over</button>
@@ -224,27 +279,25 @@ p.none-note { font-size: 14px; }
 
 <main class="wrap">
   <section id="view-start" aria-labelledby="start-title">
-    <div class="intro">
-      <h2 id="start-title">Find the invoices that do not add up</h2>
-      <p>Drop your three exports below. Every invoice is checked against its purchase order and its payments, and anything that does not match is listed with the rupees at risk.</p>
-    </div>
-    <div class="zones" id="zones"></div>
-    <div class="actions">
-      <button class="btn big" id="run" type="button" disabled>Run triage</button>
-      <span class="or">or</span>
-      <button class="btn big primary" id="sample" type="button">Use sample data</button>
+    <div class="start">
+      <div class="intro">
+        <h2 id="start-title">Find the invoices that do not add up</h2>
+        <p>Every invoice is checked against its purchase order and its payments. Anything that does not match is listed with the rupees at risk and the rows that prove it.</p>
+        <div class="actions">
+          <button class="btn big primary" id="sample" type="button">Use sample data</button>
+          <button class="btn big" id="run" type="button" disabled>Run triage</button>
+        </div>
+        <p class="static-note" id="static-note" hidden>These are the three sample files, so both buttons show the same result. Clone the repo to run triage on your own exports.</p>
+      </div>
+      <div class="zones" id="zones"></div>
     </div>
   </section>
 
   <section id="view-loading" hidden aria-live="polite" aria-busy="true">
-    <div class="loading-head">
-      <div class="spinner" aria-hidden="true"></div>
-      <div><strong>Checking your invoices</strong><br><span class="sub">Matching each one to its purchase order and payments, then writing up what is wrong.</span></div>
-    </div>
-    <div class="skel-cards"><div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div></div>
-    <div class="skel-table">
-      <div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>
-      <div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>
+    <div class="loading">
+      <div class="ticking" id="ticking" aria-hidden="true"></div>
+      <strong>Checking your invoices</strong>
+      <p>Matching each one to its purchase order and payments, then writing up what is wrong.</p>
     </div>
   </section>
 
@@ -257,7 +310,7 @@ p.none-note { font-size: 14px; }
   </section>
 
   <section id="view-results" hidden aria-label="Triage results">
-    <div class="stats" id="stats"></div>
+    <div class="headline" id="stats"></div>
     <div class="notice" id="warnings" hidden></div>
     <div class="toolbar">
       <div class="chips" id="chips" role="group" aria-label="Filter by exception type"></div>
@@ -267,7 +320,25 @@ p.none-note { font-size: 14px; }
 </main>
 
 <div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true" inert></aside>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true" inert>
+  <div class="drawer-head">
+    <div class="titles">
+      <div class="eyebrow"><span id="d-sev"></span><span id="d-kind"></span></div>
+      <h2 id="drawer-title"></h2>
+      <div class="vendor" id="d-vendor"></div>
+      <div class="checks" id="d-checks"></div>
+    </div>
+    <div class="amount"><div class="label">Amount at risk</div><div class="value" id="d-amount"></div></div>
+    <button class="close" id="drawer-close" type="button" aria-label="Close details">×</button>
+  </div>
+  <div class="drawer-nav">
+    <span id="d-pos" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <button class="step" id="d-prev" type="button" aria-label="Previous exception"><kbd>K</kbd><span>Previous</span></button>
+    <button class="step" id="d-next" type="button" aria-label="Next exception"><kbd>J</kbd><span>Next</span></button>
+  </div>
+  <div class="drawer-body" id="d-body"></div>
+</aside>
 
 <script>
 "use strict";
@@ -277,6 +348,17 @@ const KINDS = [
   { kind: "purchase_orders", title: "Purchase orders", hint: "PO export from Zoho Books or similar" },
   { kind: "payments", title: "Payments", hint: "Bank or payment voucher export" },
 ];
+
+/* Every invoice is checked against two other documents. */
+const CHECKS = [
+  { kind: "purchase_orders", label: "PO", long: "Purchase order" },
+  { kind: "payments", label: "Paid", long: "Payments" },
+];
+const STATE_WORDS = { ok: "agrees", bad: "numbers disagree", none: "nothing linked" };
+
+/* A static export swaps null for {"data", "report", "files"}: the page then reads the sample result from a file
+   and the three drop rows show the sample files, because uploading needs the local Python server. */
+const STATIC = null;
 
 const state = { uploaded: {}, data: null, filter: "all", selectedId: null, opener: null, view: "start" };
 const $ = (id) => document.getElementById(id);
@@ -293,6 +375,16 @@ function add(parent, ...kids) {
   return parent;
 }
 function clear(node) { node.replaceChildren(); return node; }
+
+/* A mark is a tick (agrees), a red square (numbers disagree) or a dashed square (nothing linked). */
+function mark(kind) { return $("t-" + kind).content.firstElementChild.cloneNode(true); }
+
+/* A check is bad when a cell that proves the finding sits in that file, none when no row of that file is linked. */
+function checkState(exc, kind) {
+  const rows = (exc.rows && exc.rows[kind]) || [];
+  if (!rows.length) return "none";
+  return rows.some((r) => (r.flagged || []).length) ? "bad" : "ok";
+}
 
 function show(view) {
   state.view = view;
@@ -315,7 +407,7 @@ async function api(path, options) {
   return body;
 }
 
-/* ---------- start view: three drop zones ---------- */
+/* ---------- start view: three drop rows, each one a mark that fills in ---------- */
 
 const zoneParts = {};
 
@@ -330,18 +422,18 @@ function buildZones() {
     input.type = "file";
     input.accept = ".csv,text/csv";
     input.hidden = true;
-    const glyph = el("div", "glyph", "+");
+    const glyph = el("div", "glyph");
     glyph.setAttribute("aria-hidden", "true");
     const status = el("div", "zone-status");
     status.setAttribute("aria-live", "polite");
-    add(zone, input, glyph, el("div", "zone-title", spec.title), el("div", "zone-hint", spec.hint), status);
+    add(zone, input, glyph, add(el("div"), el("div", "zone-title", spec.title), el("div", "zone-hint", spec.hint)), status);
     host.append(zone);
     zoneParts[spec.kind] = { zone, glyph, status };
     setZone(spec.kind, "empty");
 
-    zone.addEventListener("click", () => { if (!zone.classList.contains("is-busy")) input.click(); });
+    zone.addEventListener("click", () => { if (!STATIC && !zone.classList.contains("is-busy")) input.click(); });
     zone.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+      if (!STATIC && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); input.click(); }
     });
     input.addEventListener("change", () => { handleFile(spec.kind, input.files[0]); input.value = ""; });
     zone.addEventListener("dragenter", (e) => { e.preventDefault(); zone.classList.add("is-over"); });
@@ -362,19 +454,32 @@ function setZone(kind, mode, info) {
   const { zone, glyph, status } = zoneParts[kind];
   zone.classList.remove("is-ok", "is-error", "is-busy");
   clear(status);
+  clear(glyph);
   if (mode === "empty") {
-    glyph.textContent = "+";
+    glyph.append(mark("none"));
     status.textContent = "Drop a CSV here or click to browse";
   } else if (mode === "busy") {
     zone.classList.add("is-busy");
+    glyph.append(mark("none"));
     status.textContent = "Reading " + info + "...";
   } else if (mode === "ok") {
     zone.classList.add("is-ok");
-    glyph.textContent = "✓";
-    add(status, el("span", "fname", info.filename), el("span", null, " · " + info.rows + " rows"));
+    glyph.append(mark("ok"));
+    const name = el("span", "fname");
+    if (STATIC) {  // the sample files sit beside the page, so the name opens the raw CSV
+      const link = el("a", null, info.filename);
+      link.href = STATIC.files + info.filename;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.addEventListener("click", (e) => e.stopPropagation());
+      name.append(link);
+    } else {
+      name.textContent = info.filename;
+    }
+    add(status, name, el("span", null, " · " + info.rows + " rows"));
   } else if (mode === "error") {
     zone.classList.add("is-error");
-    glyph.textContent = "!";
+    glyph.append(mark("bad"));
     status.textContent = info;
   }
 }
@@ -382,7 +487,7 @@ function setZone(kind, mode, info) {
 const MAX_BYTES = 5 * 1024 * 1024;
 
 async function handleFile(kind, file) {
-  if (!file) return;
+  if (!file || STATIC) return;
   delete state.uploaded[kind];
   if (file.size > MAX_BYTES) {
     setZone(kind, "error", "That file is over 5 MB. Export a smaller date range and try again.");
@@ -441,28 +546,29 @@ function renderResults(data) {
   renderTable();
 }
 
-function stat(label, value, extraClass) {
-  const card = el("div", "stat" + (extraClass ? " " + extraClass : ""));
-  const sub = el("div", "sub");
-  add(card, el("div", "label", label), el("div", "value", value), sub);
-  return { card, sub };
+function legendBlock() {
+  const box = el("div", "legend");
+  const list = el("ul");
+  for (const key of ["ok", "bad", "none"]) {
+    list.append(add(el("li"), mark(key), el("span", null, key === "ok" ? "Agrees with the invoice" : key === "bad" ? "Numbers disagree" : "Nothing linked")));
+  }
+  return add(box, el("h2", null, "Against PO and payments"), list);
 }
 
 function renderStats(data) {
   const t = data.totals;
-  const risk = stat("Amount at risk", t.amount_at_risk_display, "risk");
-  risk.sub.textContent = t.exceptions_found
-    ? t.exceptions_found + " of " + t.invoices_checked + " invoices do not add up. Biggest first below."
+  const main = el("div");
+  const verdict = t.exceptions_found
+    ? t.exceptions_found + " of " + t.invoices_checked + " invoices do not add up" +
+      (t.high_count > 0 ? ", " + t.high_count + " of them high severity" : "") + ". Biggest first below."
     : "Every invoice matched its PO and payments.";
-  if (t.amount_at_risk_findings !== t.amount_at_risk) {
-    add(risk.sub, el("small", "across", "across all findings: " + t.amount_at_risk_findings_display));
+  add(main, el("div", "label", "Amount at risk"),
+      add(el("div", "figure-wrap"), el("span", "figure", t.amount_at_risk_display)),
+      el("p", "verdict", verdict));
+  if (t.amount_at_risk_findings_display && t.amount_at_risk_findings !== t.amount_at_risk) {
+    main.append(el("p", "across", "across all findings: " + t.amount_at_risk_findings_display));
   }
-  const found = stat("Exceptions found", String(t.exceptions_found));
-  if (t.high_count > 0) add(found.sub, el("span", "pill high", t.high_count + " high"), el("span", null, "fix these first"));
-  else found.sub.textContent = t.exceptions_found ? "None are high severity" : "Everything matched";
-  const checked = stat("Invoices checked", String(t.invoices_checked));
-  checked.sub.textContent = "Each matched to its PO and payments";
-  add(clear($("stats")), risk.card, found.card, checked.card);
+  add(clear($("stats")), main, legendBlock());
 }
 
 function renderWarnings(data) {
@@ -500,25 +606,31 @@ function renderChips(data) {
 }
 
 const COLUMNS = [
-  ["col-amt num", "Amount at risk"], ["col-kind", "Exception"], ["col-inv", "Invoice / vendor"],
+  ["col-amt num", "Amount at risk"], ["col-marks", null], ["col-kind", "Exception"], ["col-inv", "Invoice / vendor"],
   ["col-why", "What we found"], ["col-act", "Suggested action"],
 ];
 
+function visibleRows() {
+  return state.data.exceptions.filter((e) => state.filter === "all" || e.type === state.filter);
+}
+
 function renderTable() {
   const wrap = clear($("table-wrap"));
-  const rows = state.data.exceptions.filter((e) => state.filter === "all" || e.type === state.filter);
+  const rows = visibleRows();
   if (!rows.length) {
     wrap.append(el("div", "empty", state.data.exceptions.length ? "Nothing of that type." : "No exceptions found. Every invoice matched its purchase order and payments."));
     return;
-  }
-  if (state.data.truncated) {
-    wrap.append(el("div", "note", "Showing the " + state.data.exceptions.length + " largest of " + state.data.totals.exceptions_found + ". Download the CSV for all of them."));
   }
   const table = el("table", "exc");
   const head = el("tr");
   for (const [cls, label] of COLUMNS) {
     const th = el("th", cls, label);
     th.scope = "col";
+    if (!label) {
+      const box = el("div", "marks-box");
+      for (const c of CHECKS) box.append(el("span", "m", c.label));
+      th.append(box);
+    }
     head.append(th);
   }
   add(table, add(el("thead"), head));
@@ -526,12 +638,37 @@ function renderTable() {
   for (const exc of rows) body.append(tableRow(exc));
   table.append(body);
   wrap.append(table);
+  if (state.data.truncated) {
+    wrap.append(el("div", "note table-note", "Showing the " + state.data.exceptions.length + " largest of " + state.data.totals.exceptions_found + ". Download the CSV for all of them."));
+  }
 }
 
 function textCell(cls, text, placeholder) {
   const td = el("td", cls);
   td.append(el("div", "wrap-text" + (text ? "" : " muted"), text || placeholder));
   return td;
+}
+
+function sevBlock(severity) {
+  const level = { high: 3, medium: 2, low: 1 }[severity] || 1;
+  const bars = el("span", "bars");
+  bars.setAttribute("aria-hidden", "true");
+  for (let i = 1; i <= 3; i++) bars.append(el("i", i <= level ? "on" : null));
+  return add(el("span", "sev"), bars, el("span", null, severity));
+}
+
+/* The two marks for a row, with the words for anyone who cannot see them. */
+function marksCell(exc) {
+  const box = el("div", "marks-box");
+  const spoken = [];
+  for (const c of CHECKS) {
+    const s = checkState(exc, c.kind);
+    box.append(add(el("span", "m"), mark(s), el("span", "ml", c.label)));
+    spoken.push(c.long + ": " + STATE_WORDS[s]);
+  }
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", spoken.join(". "));
+  return add(el("td", "marks"), box);
 }
 
 function tableRow(exc) {
@@ -541,9 +678,9 @@ function tableRow(exc) {
   if (exc.id === state.selectedId) tr.classList.add("selected");
   tr.setAttribute("aria-label", exc.type_label + " on invoice " + exc.invoice_no + ", open details");
   const amt = el("td", "num" + (exc.amount_at_risk === 0 ? " zero" : ""), exc.amount_at_risk_display);
-  const kind = add(el("td"), el("span", "pill " + exc.severity, exc.severity), el("div", "kind", exc.type_label));
-  const who = add(el("td"), el("div", "inv mono", exc.invoice_no), el("div", "vend wrap-text", exc.vendor));
-  add(tr, amt, kind, who,
+  const kind = add(el("td", "kindc"), sevBlock(exc.severity), el("div", "kind", exc.type_label));
+  const who = add(el("td", "who"), el("div", "inv mono", exc.invoice_no), el("div", "vend wrap-text", exc.vendor));
+  add(tr, amt, marksCell(exc), kind, who,
       textCell("why", exc.explanation, "No explanation yet"), textCell("act", exc.suggested_action, ""));
   tr.addEventListener("click", () => openDrawer(exc, tr));
   tr.addEventListener("keydown", (e) => {
@@ -554,29 +691,58 @@ function tableRow(exc) {
 
 /* ---------- detail drawer ---------- */
 
+function markSelected(row) {
+  for (const old of document.querySelectorAll("#table-wrap tr.selected")) old.classList.remove("selected");
+  if (row) row.classList.add("selected");
+}
+
 function openDrawer(exc, opener) {
   state.selectedId = exc.id;
   state.opener = opener;
-  for (const row of document.querySelectorAll("#table-wrap tr.selected")) row.classList.remove("selected");
-  if (opener) opener.classList.add("selected");
-  const drawer = clear($("drawer"));
+  markSelected(opener);
+  fillDrawer(exc);
+  const drawer = $("drawer");
+  $("scrim").hidden = false;
+  drawer.inert = false;
+  drawer.setAttribute("aria-hidden", "false");
+  // The drawer is visibility:hidden until it has the open class, so focus only after that.
+  requestAnimationFrame(() => { drawer.classList.add("open"); $("drawer-close").focus(); });
+}
 
-  const close = el("button", "close", "×");
-  close.type = "button";
-  close.id = "drawer-close";
-  close.setAttribute("aria-label", "Close details");
-  close.addEventListener("click", () => closeDrawer(true));
+/* J and K walk down and up the list that is on screen, so a whole queue can be triaged without going back to the table. */
+function stepDrawer(delta) {
+  const rows = visibleRows();
+  const at = rows.findIndex((e) => e.id === state.selectedId);
+  const next = rows[at + delta];
+  if (at < 0 || !next) return;
+  const row = document.querySelector('#table-wrap tr[data-id="' + CSS.escape(next.id) + '"]');
+  state.selectedId = next.id;
+  state.opener = row;
+  markSelected(row);
+  fillDrawer(next);
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
 
-  const titles = el("div", "titles");
-  const title = el("h2", null, "Invoice " + exc.invoice_no);
-  title.id = "drawer-title";
-  add(titles,
-      add(el("div", "eyebrow"), el("span", "pill " + exc.severity, exc.severity), el("span", null, exc.type_label + " · " + exc.id)),
-      title, el("div", "vendor", exc.vendor));
-  const amount = add(el("div", "amount"), el("div", "label", "Amount at risk"), el("div", "value", exc.amount_at_risk_display));
-  drawer.append(add(el("div", "drawer-head"), titles, amount, close));
+function fillDrawer(exc) {
+  clear($("d-sev")).append(sevBlock(exc.severity));
+  $("d-kind").textContent = exc.type_label + " · " + exc.id;
+  $("drawer-title").textContent = "Invoice " + exc.invoice_no;
+  $("d-vendor").textContent = exc.vendor;
+  $("d-amount").textContent = exc.amount_at_risk_display;
 
-  const body = el("div", "drawer-body");
+  const checks = clear($("d-checks"));
+  for (const c of CHECKS) {
+    const s = checkState(exc, c.kind);
+    checks.append(add(el("span"), mark(s), el("span", null, c.long + " " + STATE_WORDS[s])));
+  }
+
+  const rows = visibleRows();
+  const at = rows.findIndex((e) => e.id === exc.id);
+  $("d-pos").textContent = (at + 1) + " of " + rows.length;
+  $("d-prev").setAttribute("aria-disabled", String(at <= 0));
+  $("d-next").setAttribute("aria-disabled", String(at >= rows.length - 1));
+
+  const body = clear($("d-body"));
   add(body, el("h3", null, "What we found"),
       el("p", exc.explanation ? "lead" : "none-note", exc.explanation || "No explanation is available for this one."),
       el("h3", null, "Suggested action"), el("p", "todo", exc.suggested_action),
@@ -584,13 +750,7 @@ function openDrawer(exc, opener) {
       el("p", "sub-h", "Straight from your files, with your own column names. Invoice number, date and total come first."),
       legend());
   for (const spec of KINDS) body.append(rowGroup(spec.kind, exc.rows[spec.kind] || [], (exc.notes || {})[spec.kind]));
-  drawer.append(body);
-
-  $("scrim").hidden = false;
-  drawer.inert = false;
-  drawer.setAttribute("aria-hidden", "false");
-  // The drawer is visibility:hidden until it has the open class, so focus only after that.
-  requestAnimationFrame(() => { drawer.classList.add("open"); close.focus(); });
+  body.scrollTop = 0;
 }
 
 /* The lead columns stay where they are; any flagged column that is not one of them comes next, so the proof is on screen. */
@@ -601,7 +761,7 @@ function flaggedFirst(columns, flagged, leadCount) {
 
 function legend() {
   const p = el("p", "sub-h");
-  add(p, el("span", "key"), "The highlighted cells are the ones that prove the finding.");
+  add(p, el("span", "key"), "The ringed cells are the ones that prove the finding.");
   return p;
 }
 
@@ -633,17 +793,21 @@ function rowGroup(kind, rows, note) {
   for (const r of rows) {
     const tr = el("tr");
     const rn = el("td", "rn", String(r.row));
-    if (r.label) rn.append(el("span", "rowtag", r.label));
+    if (r.label) rn.append(el("span", "rowtag" + (r.label === "Duplicate" ? " dup" : ""), r.label));
     tr.append(rn);
     for (const h of columns) {
       const value = r.cells[h];
       const cls = (amounts.has(h) ? "amt" : "") + ((r.flagged || []).includes(h) ? " flag" : "") + (value ? "" : " blank");
-      tr.append(el("td", cls.trim() || null, value || "—"));
+      tr.append(el("td", cls.trim() || null, value || "blank"));
     }
     tbody.append(tr);
   }
   add(table, add(el("thead"), headRow), tbody);
   const wrap = add(el("div", "mini-wrap"), table);
+  // A scrolling region needs to be reachable from the keyboard.
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-label", info.filename + " rows");
   const scroller = add(el("div", "mini-scroll"), wrap);
   add(group, cap, note ? el("p", "note", note) : null, scroller, scrollCue(scroller, wrap));
   return group;
@@ -672,7 +836,7 @@ function closeDrawer(restoreFocus) {
   drawer.inert = true;
   drawer.setAttribute("aria-hidden", "true");
   $("scrim").hidden = true;
-  for (const row of document.querySelectorAll("#table-wrap tr.selected")) row.classList.remove("selected");
+  markSelected(null);
   state.selectedId = null;
   state.opener = null;
   if (restoreFocus && opener && document.contains(opener)) opener.focus();
@@ -682,6 +846,11 @@ document.addEventListener("keydown", (e) => {
   const drawer = $("drawer");
   if (!drawer.classList.contains("open")) return;
   if (e.key === "Escape") { e.preventDefault(); closeDrawer(true); return; }
+  if ((e.key === "j" || e.key === "k") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    stepDrawer(e.key === "j" ? 1 : -1);
+    return;
+  }
   if (e.key === "Tab") {  // keep keyboard focus inside the open drawer
     const items = drawer.querySelectorAll("button, [href], input, [tabindex]:not([tabindex='-1'])");
     if (!items.length) return;
@@ -691,17 +860,40 @@ document.addEventListener("keydown", (e) => {
   }
 });
 $("scrim").addEventListener("click", () => closeDrawer(true));
+$("drawer-close").addEventListener("click", () => closeDrawer(true));
+$("d-prev").addEventListener("click", (e) => { if (e.currentTarget.getAttribute("aria-disabled") !== "true") stepDrawer(-1); });
+$("d-next").addEventListener("click", (e) => { if (e.currentTarget.getAttribute("aria-disabled") !== "true") stepDrawer(1); });
 
 /* ---------- wiring ---------- */
 
-$("run").addEventListener("click", () => run("/api/triage", { method: "POST" }));
-$("sample").addEventListener("click", () => run("/api/sample"));
+$("run").addEventListener("click", () => (STATIC ? run(STATIC.data) : run("/api/triage", { method: "POST" })));
+$("sample").addEventListener("click", () => run(STATIC ? STATIC.data : "/api/sample"));
 $("restart").addEventListener("click", () => { closeDrawer(false); show("start"); });
 $("error-back").addEventListener("click", () => show("start"));
 
+$("logo").append(mark("ok"), mark("bad"));
+for (let i = 0; i < 3; i++) $("ticking").append(add(el("div", "tick-cell"), mark("none"), mark("ok")));
 buildZones();
 updateRunButton();
 show("start");
+
+/* Static copy: show the three sample files as already loaded, so Run triage is ready and the inputs are visible. */
+async function enterStaticMode() {
+  $("download").href = STATIC.report;
+  $("zones").classList.add("fixed");
+  $("static-note").hidden = false;
+  for (const zone of document.querySelectorAll(".zone")) zone.removeAttribute("role");
+  try {
+    const data = await api(STATIC.data);
+    for (const spec of KINDS) {
+      const file = data.sample_files[spec.kind];
+      state.uploaded[spec.kind] = file;
+      setZone(spec.kind, "ok", file);
+    }
+    updateRunButton();
+  } catch (err) { /* the buttons still try again and show the error */ }
+}
+if (STATIC) enterStaticMode();
 </script>
 </body>
 </html>
