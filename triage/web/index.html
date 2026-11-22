@@ -82,6 +82,21 @@ main.wrap { padding-top: 0; padding-bottom: 96px; }
 .zones.fixed .zone, .zones.fixed .zone:hover { cursor: default; background: transparent; }
 .zone .fname a { color: var(--ink); text-underline-offset: 3px; }
 .static-note { margin: 20px 0 0; color: var(--muted); font-size: 13px; max-width: 44ch; }
+.zones-help { display: flex; align-items: center; gap: 14px; margin: 20px 0 0; color: var(--muted); font-size: 14px; }
+
+/* sample data view: the raw files as a spreadsheet grid */
+.sample-head { padding: 56px 0 28px; max-width: 70ch; }
+.sample-head h2 { margin: 0 0 12px; font: 400 40px/1.08 var(--display); letter-spacing: -.02em; }
+.sample-head p { margin: 0 0 24px; color: var(--muted); font-size: 16px; }
+#sample-table .mini-wrap { margin-top: 20px; max-height: 560px; overflow: auto; }
+#sample-table table.mini { font-size: 12.5px; }
+#sample-table .mini th { position: sticky; top: 0; z-index: 1; text-align: center; }
+#sample-table .mini th.rn { z-index: 3; left: 0; }
+/* A heading or footer line sits in column A but is drawn over the cells beside it, so it never widens column A. */
+#sample-table .mini td.heading { position: relative; color: var(--muted); }
+#sample-table .mini td.heading::before { content: "\00a0"; }
+#sample-table .mini td.heading span { position: absolute; left: 8px; top: 8px; }
+.sample-total { margin-top: 10px; color: var(--muted); font-size: 13px; }
 
 /* loading */
 .loading { padding-top: 96px; max-width: 560px; }
@@ -227,6 +242,7 @@ p.none-note { font-size: 14px; }
   .brand { flex: 1 1 100%; }
   h1 { font-size: 18px; }
   .chips { flex-wrap: nowrap; overflow-x: auto; }
+  #sample-tabs { flex-wrap: wrap; column-gap: 20px; overflow-x: visible; }
   .legend h2 { display: none; }
   .legend ul { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .legend li, .legend li:last-child { border: 0; padding: 2px 0; }
@@ -289,8 +305,24 @@ p.none-note { font-size: 14px; }
         </div>
         <p class="static-note" id="static-note" hidden>These are the three sample files, so both buttons show the same result. Clone the repo to run triage on your own exports.</p>
       </div>
-      <div class="zones" id="zones"></div>
+      <div>
+        <div class="zones" id="zones"></div>
+        <p class="zones-help">Not sure what to drop? <button class="btn" id="show-sample" type="button">Show sample data</button></p>
+      </div>
     </div>
+  </section>
+
+  <section id="view-sample" hidden aria-labelledby="sample-title">
+    <div class="sample-head">
+      <h2 id="sample-title">The sample data</h2>
+      <p>The three exports exactly as they sit on disk: Tally heading lines, a Grand Total footer, mixed date and amount formats and blank cells. The vendors and GSTINs are fictional.</p>
+      <div class="actions">
+        <button class="btn primary" id="sample-run" type="button">Run triage on this</button>
+        <button class="btn" id="sample-back" type="button">Back</button>
+      </div>
+    </div>
+    <div class="chips" id="sample-tabs" role="group" aria-label="Sample file"></div>
+    <div id="sample-table"></div>
   </section>
 
   <section id="view-loading" hidden aria-live="polite" aria-busy="true">
@@ -388,7 +420,7 @@ function checkState(exc, kind) {
 
 function show(view) {
   state.view = view;
-  for (const name of ["start", "loading", "error", "results"]) $("view-" + name).hidden = name !== view;
+  for (const name of ["start", "sample", "loading", "error", "results"]) $("view-" + name).hidden = name !== view;
   $("restart").hidden = view !== "results";
   $("download").hidden = view !== "results";
   if (view !== "results") $("sample-tag").hidden = true;
@@ -532,6 +564,87 @@ async function run(path, options) {
     $("error-message").textContent = err.message;
     show("error");
   }
+}
+
+/* ---------- sample data view: the raw files as a spreadsheet ---------- */
+
+const sampleView = { data: null, kind: "invoices" };
+
+function columnLetter(index) {  // 0 is A, 25 is Z, 26 is AA
+  let name = "";
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+}
+
+async function openSampleView() {
+  try {
+    if (!sampleView.data) sampleView.data = await api(STATIC ? STATIC.view : "/api/sample-files");
+  } catch (err) {
+    $("error-message").textContent = err.message;
+    show("error");
+    return;
+  }
+  renderSampleTabs();
+  renderSampleTable();
+  show("sample");
+  window.scrollTo(0, 0);
+}
+
+function renderSampleTabs() {
+  const host = clear($("sample-tabs"));
+  for (const spec of KINDS) {
+    const file = sampleView.data.files[spec.kind];
+    const tab = el("button", "chip");
+    tab.type = "button";
+    tab.setAttribute("aria-pressed", String(sampleView.kind === spec.kind));
+    add(tab, el("span", null, spec.title), el("span", "n", file.total + " lines"));
+    tab.addEventListener("click", () => {
+      sampleView.kind = spec.kind;
+      for (const other of host.children) other.setAttribute("aria-pressed", String(other === tab));
+      renderSampleTable();
+    });
+    host.append(tab);
+  }
+}
+
+function renderSampleTable() {
+  const file = sampleView.data.files[sampleView.kind];
+  const host = clear($("sample-table"));
+  const table = el("table", "mini");
+  const head = el("tr");
+  const corner = el("th", "rn", "Row");
+  corner.scope = "col";
+  head.append(corner);
+  for (let i = 0; i < file.width; i++) {
+    const th = el("th", null, columnLetter(i));
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = el("tbody");
+  file.rows.forEach((cells, index) => {
+    const tr = el("tr");
+    tr.append(el("td", "rn", String(index + 1)));
+    for (let i = 0; i < file.width; i++) {
+      const value = cells[i];
+      // A line with a single cell is a heading or footer line, not a record.
+      if (cells.length === 1) {
+        const td = el("td", "heading");
+        if (i === 0) td.append(el("span", null, value));
+        tr.append(td);
+      } else {
+        tr.append(el("td", value ? null : "blank", value || "blank"));
+      }
+    }
+    body.append(tr);
+  });
+  add(table, add(el("thead"), head), body);
+  const wrap = add(el("div", "mini-wrap"), table);
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-label", file.filename + " lines");
+  host.append(wrap);
+  const shown = file.rows.length;
+  host.append(el("div", "sample-total", file.filename + " · " + (shown < file.total ? "first " + shown + " of " + file.total : file.total) + " lines"));
 }
 
 /* ---------- results ---------- */
@@ -868,6 +981,9 @@ $("d-next").addEventListener("click", (e) => { if (e.currentTarget.getAttribute(
 
 $("run").addEventListener("click", () => (STATIC ? run(STATIC.data) : run("/api/triage", { method: "POST" })));
 $("sample").addEventListener("click", () => run(STATIC ? STATIC.data : "/api/sample"));
+$("show-sample").addEventListener("click", openSampleView);
+$("sample-back").addEventListener("click", () => show("start"));
+$("sample-run").addEventListener("click", () => run(STATIC ? STATIC.data : "/api/sample"));
 $("restart").addEventListener("click", () => { closeDrawer(false); show("start"); });
 $("error-back").addEventListener("click", () => show("start"));
 
