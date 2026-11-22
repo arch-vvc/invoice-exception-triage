@@ -4,6 +4,7 @@
     POST /api/upload/<kind>     raw CSV bytes in the body, display name in the X-Filename header
     POST /api/triage            run triage on the three uploaded files
     GET  /api/sample            run triage on the bundled sample data
+    GET  /api/sample-files      the three bundled sample files as they sit on disk, for the "Show sample data" view
     GET  /api/report.csv        the last result as a CSV download (400 until a triage has run)
 
 Uploads and the last result live in memory on the server object and are lost when it stops.
@@ -21,6 +22,7 @@ from .engine import SAMPLE_FILES, TriageException, TriageResult, triage_bytes, t
 from .loader import InputError, load_table
 from .normalise import format_inr
 from .report import TYPE_LABELS, to_csv_bytes
+from .sample_view import sample_view
 
 INDEX_HTML = Path(__file__).resolve().parent / "web" / "index.html"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -219,7 +221,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
-        routes = {"/": self.serve_index, "/api/sample": self.run_sample, "/api/report.csv": self.send_report}
+        routes = {"/": self.serve_index, "/api/sample": self.run_sample, "/api/report.csv": self.send_report,
+                  "/api/sample-files": self.send_sample_files}
         self.route(path, routes, post_only=("/api/triage",))
 
     def do_POST(self):
@@ -230,7 +233,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.guarded(lambda: self.receive_upload(kind))
             return self.send_error_json(404, f"Unknown file type '{kind[:40]}'. Use invoices, purchase_orders "
                                              "or payments.")
-        self.route(path, {"/api/triage": self.run_uploaded}, get_only=("/", "/api/sample", "/api/report.csv"))
+        self.route(path, {"/api/triage": self.run_uploaded},
+                   get_only=("/", "/api/sample", "/api/report.csv", "/api/sample-files"))
 
     def route(self, path, routes, get_only=(), post_only=()):
         if path in routes:
@@ -285,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
             raise InputError(f"Still missing: {', '.join(missing)}. Upload all three files, then run triage.")
         result = triage_bytes(files)
         self.finish_triage(result, {kind: name for kind, (name, _) in files.items()}, "upload")
+
+    def send_sample_files(self):
+        self.send_json(200, sample_view(self.server.sample_dir))
 
     def run_sample(self):
         result = triage_dir(self.server.sample_dir)

@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from triage.engine import SAMPLE_FILES, triage_dir  # noqa: E402
 from triage.explain import explain_all  # noqa: E402
 from triage.report import to_csv_bytes  # noqa: E402
+from triage.sample_view import sample_view  # noqa: E402
 from triage.server import CONTENT_SECURITY_POLICY, INDEX_HTML, build_result  # noqa: E402
 
 SAMPLE_DIR = ROOT / "sample_data"
@@ -61,6 +62,8 @@ def app(environ, start_response):
         result, found = sample_result()
         explanations = {e.id: str(found.get(e.id) or "") for e in result.exceptions}
         return reply_json(start_response, 200, build_result(result, explanations, dict(SAMPLE_FILES), "sample"))
+    if path == "/api/sample-files" and method == "GET":
+        return reply_json(start_response, 200, sample_view(SAMPLE_DIR))
     if path == "/api/report.csv" and method == "GET":
         result, found = sample_result()
         return respond(start_response, 200, to_csv_bytes(result.exceptions, found), "text/csv; charset=utf-8",
