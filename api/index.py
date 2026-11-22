@@ -9,6 +9,7 @@ import functools
 import json
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -24,6 +25,13 @@ UPLOADS_OFF = ("Uploads are switched off in the online demo, which runs the samp
                "Clone the repo to triage your own Tally or Zoho Books exports: "
                "github.com/arch-vvc/invoice-exception-triage")
 REASONS = {200: "OK", 404: "Not Found", 405: "Method Not Allowed", 501: "Not Implemented"}
+
+
+def request_path(environ) -> str:
+    """The path the visitor asked for. vercel.json rewrites every request to this file as ?p=<path>, because the
+    function itself only sees its own address."""
+    wanted = parse_qs(environ.get("QUERY_STRING", "")).get("p", [""])[0]
+    return "/" + wanted.lstrip("/")
 
 
 def respond(start_response, status: int, body: bytes, content_type: str, extra=()):
@@ -45,7 +53,7 @@ def sample_result():
 
 def app(environ, start_response):
     method = environ["REQUEST_METHOD"]
-    path = environ.get("PATH_INFO", "/").split("?")[0]
+    path = request_path(environ)
     if path in ("/", "/index.html") and method == "GET":
         return respond(start_response, 200, INDEX_HTML.read_bytes(), "text/html; charset=utf-8",
                        [("Content-Security-Policy", CONTENT_SECURITY_POLICY)])

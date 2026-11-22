@@ -11,3 +11,4 @@ screenshots/*.png
 !screenshots/triage-results-1440.png
 !screenshots/drawer2-GAC-118-1440.png
 .DS_Store
+.vercel
